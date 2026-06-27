@@ -1,0 +1,926 @@
+﻿                                                                      Pattern Recognition 72 (2017) 327–340
+
+
+
+                                                                  Contents lists available at ScienceDirect
+
+
+                                                                     Pattern Recognition
+                                                          journal homepage: www.elsevier.com/locate/patcog
+
+
+
+
+Synthetic minority oversampling technique for multiclass imbalance
+problems
+Tuanfei Zhu a, Yaping Lin a,∗, Yonghe Liu b
+a
+    College of Information Science and Engineering, Hunan University, 116 Lu Shan South Road, Changsha, China
+b
+    Department of Computer Science & Engineering, University of Texas at Arlington, 701 S Nedderman Dr, Arlington, U.S.
+
+
+
+
+a r t i c l e            i n f o                          a b s t r a c t
+
+Article history:                                          Multiclass imbalance data learning has attracted increasing interests from the research community. Un-
+Received 11 January 2017                                  fortunately, existing oversampling solutions, when facing this more challenging problem as compared to
+Revised 3 July 2017
+                                                          two-class imbalance case, have shown their respective deﬁciencies such as causing serious over gener-
+Accepted 25 July 2017
+                                                          alization or not actively improving the class imbalance in data space. We propose a k-nearest neighbors
+Available online 25 July 2017
+                                                          (k-NN)-based synthetic minority oversampling algorithm, termed SMOM, to handle multiclass imbalance
+Keywords:                                                 problems. Different from previous k-NN-based oversampling algorithms, where for any original minor-
+Multiclass imbalance problems                             ity instance the synthetic instances are randomly generated in the directions of its k-nearest neighbors,
+Synthetic minority oversampling                           SMOM assigns a selection weight to each neighbor direction. The neighbor directions that can produce
+Over generalization                                       serious over generalization will be given small selection weights. This way, SMOM forms a mechanism
+Neighbor directions                                       of avoiding over generalization as the safer neighbor directions are more likely to be selected to yield
+                                                          the synthetic instances. Owing to this, SMOM can aggressively explore the regions of minority classes
+                                                          by conﬁguring a high value for parameter k, but do not result in severe over generalization. Extensive
+                                                          experiments using 27 real-world data sets demonstrate the effectiveness of our algorithm.
+                                                                                                                                  © 2017 Published by Elsevier Ltd.
+
+
+
+
+1. Introduction                                                                              the possible existence of multiple minority classes (termed mul-
+                                                                                             timinority) and multiple majority classes (termed multimajority)
+1.1. Motivation                                                                              complicates the situation of imbalance [7].
+                                                                                                 In this paper, we focus our attention on data oversampling
+    The imbalanced data learning is an important type of classiﬁca-                          method which is devoted to rebalance original skewed data by in-
+tion problems in machine learning and data mining, where certain                             troducing new minority class instances to combat multiclass im-
+classes (minority classes) possess much fewer instances than other                           balance problems. Data oversampling method addresses the imbal-
+classes (majority classes) while the minority classes often remain                           ance problem at the most fundamental level, and is very popular
+the primary interest. As most standard learning algorithms seek                              in the existing literature [1,8]. Its main advantage is being versa-
+the minimization of overall training errors, skewed class distribu-                          tile as it is independent of any speciﬁc classiﬁers. However, when
+tion could result in that the resulting classiﬁer provides unfavor-                          handling multiclass imbalanced data, oversampling techniques face
+able prediction performance for the minority classes. Over the past                          new challenges not present in two-class scenario. First, multiclass
+decade, a number of solutions have been proposed to deal with the                            imbalanced data might have multimajority. The minority class in-
+imbalanced learning problem [1–6], most of which are inherently                              stances are easier to be ignored by the learning algorithm as a
+designed for two-class imbalance. However, two class cannot cover                            result of the existence of multiple strong concepts from the ma-
+all scenarios in real world applications, where multiclass data with                         jority classes. To better recognize the minority class, oversampling
+imbalance tends to occur more often. Compared with the two-class                             techniques should possess the capability that can greatly broaden
+scenario, the problem of learning from multiclass imbalanced data                            and strengthen the region of minority class. Second, multiclass im-
+is more diﬃcult. This is not only because the higher number of                               balanced data may have multiminority, oversampling techniques
+classes increases the concept complexity of data, but more because                           should produce as little negative impacts as possible in the pro-
+                                                                                             cess of oversampling because the negative impacts can be ampli-
+                                                                                             ﬁed due to the existence of multiple minority classes.
+    ∗
+    Corresponding author.
+                                                                                                 Therefore, to better handle multiclass imbalance problems with
+    E-mail addresses: zhutuanfei@hnu.edu.cn (T.              Zhu),   yplin@hnu.edu.cn,
+yplinhn@163.com (Y. Lin), yonghe@cse.uta.edu (Y. Liu).
+                                                                                             data oversampling, we want to design an oversampling algorithm
+
+http://dx.doi.org/10.1016/j.patcog.2017.07.024
+0031-3203/© 2017 Published by Elsevier Ltd.
+328                                                 T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+that can aggressively broaden the regions of minority classes to                 classiﬁer, the latter will oversample and train on each two-class
+better protect the minority class instances while decreasing signiﬁ-             subproblem separately. However, regardless of class decomposi-
+cantly the negative effects in the oversampling process of minority              tion and transformation, the resulting two-class tasks have to lose
+classes. Below, we ﬁrst detail the insuﬃcient and inadaptability of              some information of original multiclass data (e.g., for both OAA
+previous oversampling algorithms in terms of handling multiclass                 decomposition and the class transformation, the label information
+imbalanced data, followed by explanation of our method.                          of k − 2 classes will be lost in each two-class task) [7,12]. Hence,
+                                                                                 the generated instances based on the two-class tasks cannot ade-
+1.2. Limits of previous oversampling techniques                                  quately embody or ﬁt the distribution of the whole multiclass data.
+                                                                                     Recently, a Mahalanobis Distance-based Over-sampling tech-
+    The most simple oversampling method is Random OverSam-                       nique (MDO) [3] was specially proposed for multiclass imbalance
+pling (ROS) which yields new instances by randomly replicating                   problems. The main idea of MDO is to preserve the covariance
+original instances. In multiclass imbalanced data, the data space                structure of the minority class instances and reduce the risk of
+of one minority class may be invaded by multiple majority classes.               class overlapping. In order to reduce the overlapping between dif-
+It is more likely that minority class instances sparsely intersperse             ferent class regions, MDO only generates the synthetic instances in
+in the instances of other classes. In order for the learning algo-               dense areas of minority class regions. This can actually result in
+rithms to not create very speciﬁc and error-prone decision regions               that the borderline minority class instances will not be protected.
+for minority classes (i.e., overﬁtting), newly introduced instances                  Based on the above analyses, for handling multiclass imbal-
+may need to actively expand the regions of minority classes and                  anced data, existing oversampling algorithms either may produce
+mitigate the class imbalance in data space [7]. However, ROS is un-              more severe negative impacts such as SMOTE, or have limited abil-
+able to reduce this kind of imbalance as its new instances come                  ity to protect minority class instances well (e.g., ROS and MDO).
+from the replication of original instances.                                      In addition, a common deﬁciency for them is that the generation
+    Synthetic Minority Oversampling TechniquEs (SMOTE) [2] was                   of new instances is not based on the whole multiclass imbalanced
+proposed for enlarging the region of minority class by generating                data to consideration.
+synthetic instances in feature space. In SMOTE, the generation of a
+synthetic instance can be described as:                                          1.3. Our method
+x   syn
+          = x + ( x − x ). ∗ γ
+             i     j    i
+                                                                       (1)
+                                                                                     Thereby motivated, we design a k-NN-based Synthetic Minority
+where xi is the minority class instance under consideration, xj is a             Oversampling algorithm to combat Multiclass imbalance problems
+instance randomly selected from the k-nearest minority neighbors                 (SMOM). Unlike previous k-NN-based oversampling where the syn-
+of xi ; γ is a vector in which each element is a random number                   thetic instances are generated in the directions of k-nearest neigh-
+from [0, 1]; the symbol “.∗ ” denotes element-wise multiplication.               bors randomly, SMOM, for each neighbor direction, gives a corre-
+It can be observed that generating a synthetic instance refers to                sponding selection weight which represents how much probability
+two original instances. For convenience, the instances like xi and               it is used as the direction of generating synthetic instances. The as-
+xj are respectively called primary reference instance (PRI) and as-              signment of selection weight for a neighbor direction mainly con-
+sistant reference instance (ARI) in this paper. According to (1),                siders the over-generalization factor that reﬂects the potential neg-
+xsyn is created along the line segment joining xi and xj , and the               ative effects to other classes (especially to other minority classes) if
+direction of line segment relative to xi is determined by xj . Since             the synthetic instances are generated along this neighbor direction.
+xj belongs to the k-nearest minority neighbors of xi , xsyn will be              Those neighbor directions causing serious over generalization will
+only created in the directions of k-nearest minority neighbors of xi .           be given small selection weights. By this way, SMOM can establish
+Hence, the generation method above is called k-nearest neighbor-                 a mechanism of avoiding over generalization.
+based (k-NN-based) method [8].                                                       Owing to this, SMOM, on one hand, decreases the risk of in-
+    Although SMOTE decreases the risk of overﬁtting [2], it can                  troducing noisy synthetic instances into the regions of incorrect
+raise the problem of over generalization which the considered mi-                minority classes. The minority classes can be better modeled as
+nority class area is generalized to the region of majority class due             the overlapping among minority classes is restricted. On the other
+to the generation of wrong synthetic instances [9]. When SMOTE                   hand, it is practicable that adopting a high value of k for SMOM
+is applied to multiclass imbalanced data, over generalization may                to dramatically expand minority class regions. The minority class
+become a more serious problem as wrongful generalization of one                  instances can be better protected. We evaluate our SMOM over 27
+minority class can also happen in the regions of other minority                  multiclass imbalanced data sets with four different classiﬁers. The
+classes to harm the learnability of minority class instances.                    experiment results show that SMOM is superior than other com-
+    Following the footsteps of SMOTE, many oversampling algo-                    pared oversampling algorithms in terms of MG, MAUC, and the re-
+rithms were developed such as ADASYN [10], RAMO [4], Safe-                       call on the smallest minority class.
+level-SMOTE (SL-SMOTE) [11] and MWMOTE [8]. Most of these ap-                        The remainder of this paper is organized as follows: A brief re-
+proaches are designed to handle two-class imbalance. If they are                 view on related works is provided in Section 2. Section 3 presents
+used to handle multiclass imbalanced data, either certain class de-              SMOM in detail. The experimental study is shown in Section 4.
+composition technique or class transformation is needed for con-                 Section 5 concludes the paper.
+verting multiclass problem into several two-class tasks. One of
+the most popular decomposition schemes is One-against-all (OAA)                  2. Related works
+[12]. In OAA, a k-class multiclass problem is converted into k two-
+class subproblems. Each subproblem is constructed by using the                       Although a large number of research works in class imbalance
+instances of class ci (i = 1 . . . k) as the positive instances and the          problems have been done, we only provide a brief overview for
+instances of other classes as the negative instances. For class trans-           those works involved into oversampling as data oversampling is
+formation, all of the classes except the considered class are incor-             our interest in this paper.
+porated into the negative class for forming a two-class task [3,13].                 Between-class imbalance, within-class imbalance and class
+When tackling multiclass imbalanced data, the difference of us-                  overlapping are three main factors for causing the diﬃculty of
+ing this way and OAA decomposition is that the former merges all                 learning from imbalanced data [1,14,15]. All oversampling algo-
+new instances generated for each class together and constructs a                 rithms can address the between-class imbalance by replicating
+                                                             T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                                       329
+
+
+
+
+ Fig. 1. An imbalanced data with three classes. (a) x1 ’s k-nearest neighbors from class c are shown by arrow (k = 5). (b) Two local regions, A and B, dominated by class c.
+
+
+
+
+original minority class instances or adding new synthetic minor-                          lecting which one of neighbor directions is equivalent to ﬁlling the
+ity instances. Some of them are also capable of dealing with                              synthetic instances in which one of corresponding generalization
+the within-class imbalance. These algorithms either use clustering                        regions. If the synthetic instances are created along the neighbor
+techniques to ﬁnd the sub-clusters of minority class so that greater                      directions x1x2 and x1x3 , they will erroneously fall in the regions
+oversampling levels can be imposed on the instances from those                            not belonging to class c, resulting in over generalization.
+smaller sub-clusters [16], or measure the diﬃculty of learning for                            To address this problem, our SMOM for the neighbor direc-
+each minority instance by considering its local characteristics so                        tion computes a corresponding selection weight to be the genera-
+as to assign higher oversampling weights into the instances with                          tion direction of synthetic instances. The computation of selection
+higher diﬃculty levels [4,8,13]. The class overlapping is a special                       weight for a neighbor direction mainly considers the over gener-
+factor with regard to using oversampling techniques to combat im-                         alization factor that measures the possible negative impacts for all
+balance problems. On one hand, oversampling can enhance the in-                           other classes when the synthetic instances are created along this
+formation expression of minority class, but on the other hand the                         neighbor direction. The neighbor directions that may cause serious
+new overlapping may be manufactured in the non-overlapping re-                            over generalization will obtain low selection weights.
+gions of original data as a result of the generation of noisy syn-                            Consider the Fig. 1a again, as the neighbor directions x1x2 and
+thetic samples [3,8,17], which is harmful to constructing the pre-                         1 3
+                                                                                          x x can respectively introduce the synthetic instances towards the
+diction model with good generalization ability. There are two ways                        regions of class c2 and c1 , causing the negative effects for the
+to alleviate the class overlapping brought from oversampling. The                         learning of these two classes, SMOM will assign lower selection
+ﬁrst way is to apply data editing technologies into the oversam-                          weights to x1x2 and x1x3 than the other neighbor directions of x1 .
+pled data for removing the possible noisy and overlapped instances                        Hence, SMOM has the ability to avoid over generalization. This ad-
+[17,18]. The second way is to avoid the generation of noisy and                           vantage can also make our SMOM to refer to more neighbors for
+wrong synthetic instances in advance. e.g., in [8,13], the minority                       the selection of ARI without having to concern the problem of over
+class instances are divided into several small clusters, the synthetic                    generalization, which helps to yield more informative synthetic in-
+instances are only allowed to be created within such clusters; in                         stances.
+paper [3], the synthetic instances are only generated for the in-                             For some minority class instances, however, computing the se-
+stances which settle in the dense minority class areas.                                   lection weights for their directions of k-nearest neighbors can be
+    Recently, multiclass imbalance problems have received increas-                        omitted. This can be understood from Fig. 1b in which the sur-
+ing attention. A few of oversampling techniques that can directly                         roundings of x7 and x8 primarily distribute the instances from class
+handle multiclass imbalanced data were proposed. Lin et al., de-                          c. It is reliable that whichever their neighbor directions is used to
+veloped a dynamic SMOTE radial basis function algorithm, DSRBF.                           generate synthetic instances. In fact, most regions may be mainly
+DSRBF uses a memetic algorithm for optimizing radial basis neu-                           occupied by the instances from a single class even though there
+ral networks. The class which has the worse accuracy in the dif-                          are multiple concepts of classes in the whole feature space. Con-
+ferent generations of memtic algorithm is oversampled by SMOTE                            sider Fig. 1b where the regions A and B are dominated by class c.
+to improve the sensitivity of minority classes. Fernández-Navarro                         The c class instances located in A and B are just like the instances
+et al. [6] designed a dynamic sampling algorithm based on multi-                          x7 and x8 , which a considerable number of neighbors from class c
+layer perceptrons (MLP), DyS. In DyS, the minority instances will                         are distributed nearby them without crossing the regions of other
+have higher probabilities to be selected to train MLP. In this way,                       classes. We, in this paper, term those c class instances located in
+the resulting MLP classiﬁer is biased towards the minority classes.                       the region dominated by class c as the outstanding instances of
+However, both DSRBF and DyS depend on speciﬁc learning algo-                              class c since they stand out in comparison with its neighbouring
+rithms.                                                                                   other classes instances. The other instances of class c are called
+                                                                                          the trapped instances of class c as they seem to be trapped in their
+                                                                                          neighbouring instances from other classes.
+3. SMOM: a k-NN-based synthetic minority oversampling
+                                                                                              Based on the above reason, we designed a neighborhood-based
+algorithm for multiclass imbalance problems
+                                                                                          clustering algorithm (i.e., NBDOS) to ﬁnd the outstanding instances
+                                                                                          of a class, the remaining instances naturally constitute the trapped
+    Previous k-NN-based oversampling algorithms randomly select
+                                                                                          instances set of this class.
+ARI from the k-nearest minority neighbors of PRI when yielding
+                                                                                              In summary, when oversampling class c, the main process of
+the synthetic instances for PRI. Fig. 1a shows an imbalanced dis-
+                                                                                          SMOM can be described as follows (the complete process is pre-
+tribution with three classes. Assuring the minority class c is be-
+                                                                                          sented in Algorithm 1):
+ing considered to oversample, and x1 is PRI. x2 , x3 , x4 , x5 and x6
+are x1 ’s k-nearest neighbors from class c (k = 5). According to (1),
+the two shaded rectangular regions in the neighbor directions x1x2                       1) Dividing the instances set of class c, Sc , into the outstanding
+and x1x3 are respectively these two directions’ generalization re-                          instances set Oic and the trapped instances set Tic by using
+gions in which the synthetic instances can appear. Obviously, se-                            NBDOS .
+330                                                          T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+                                                                                          2) Acquiring the selection weights for the neighbor directions. For
+                                                                                             each instance of Tic , computing the selection weight for each of
+Algorithm 1 SMOM(D, c, ζ , k1, k2, rTh, nTh, w1, w2, r1, r2).                                its k neighbor directions. For each instance of Oic , the selection
+                                                                                             weights in all of its k neighbor directions are simply assumed
+Input: D: The whole multiclass imbalanced data; c: The minor-
+                                                                                             to be equal.
+  ity class under consideration; ζ : Number of synthetic instances
+                                                                                          3) Generating the synthetic instances for class c. For any instance
+  to be generated; k1: Number of nearest neighbors used to gen-
+                                                                                             of class c, its k neighbor directions are selected as the direction
+  erate the synthetic instances; k2, rT h, and nT h: The parameters
+                                                                                             of generating synthetic instances according to their respective
+  used in the clustering algorithm NBDOS; w1, w2, r 1, and r 2: The
+                                                                                             selection weights.
+  parameters used for calculating the selection weights;
+Output: SI: The generated synthetic instances
+                                                                                          3.1. Performing the clustering algorithm NBDOS to divide the
+1: Obtain the instances of class c, Sc , and the instances of other
+                                                                                          instances
+      classes, Sc˜ , from D respectively.
+2: For each instance xi ∈ Sc :
+                                                                                          3.1.1. Motivation
+      1) Find the nearest k3 instances from xi , xi .Nkc3 , in Sc , where
+                                                                                              The motivation of NBDOS is to ﬁnd those c class instances lo-
+         k3 = max{k1, k2}; record the distance between xi and its                         cated in the regions dominated by class c, i.e., Oic . It can make all
+         k1th nearest instance as xi .rk1 , and obtain the nearest k1 in-                 instances of Oic to avoid the computation of selection weights for
+         stances from xi , xi .Nkc1 , in xi .Nkc3 .                                       their neighbor directions. The dominated regions of class c may be
+   2) Find the nearest k3 instances from xi , xi .Nkc˜3 , in S           c ; during
+                                                                                          separated from each other, each such region corresponds to a clus-
+        this process, choose out those instances, T , from Sc˜ which                      ter of outstanding instances containing all c class instances falling
+        the distances of they to xi are no larger than xi .rk1 , then                     into this region. All instances outside any cluster of outstanding in-
+        construct xi .F s ← T ∪ xi .Nkc1 . For all instances of xi .F s, save             stances naturally constitute the clustering of the trapped instances
+        their indexes and corresponding distances from xi to xi .F d                      of class c, i.e., Tic .
+        and xi .F i, respectively.                                                            It is worth pointing out that many existing oversampling ap-
+   3) Find the k2-nearest neighbors set of xi , xi .Nk2 , in the union                    proaches also embedded clustering techniques in their algorithmic
+        of xi .Nkc3 and xi .Nkc˜3 .                                                       processes. For these approaches, there are generally two motiva-
+3: Obtain the cluster labels of instances of Sc , Sc .cl, by                              tions behind the application of clustering. One is to identify mean-
+   using the clustering algorithm NBDOS, i.e., Sc .cl ←                                   ingful sub-clusters (/sub-concepts) for a single class [5,16,19]. This
+   NBDOS(Sc , k2, Sc .Nk2 , rT h, nT h).                                                  kind of oversampling algorithms is usually dependent on an accu-
+                                                                c                         rate result of clustering as they aim to solve the within-class im-
+4: Divide Sc into the outstanding instances Oi and the trapped
+   instances T ic : For each instance xi ∈ Sc , If xi .cl = 0, Oic ← Oic ∪               balance (/disjuncts) by imposing different operations for the differ-
+   {xi }; otherwise, T ic ← T ic ∪ {xi }.                                                 ent sub-concepts (/clusters) [5,16]. In SMOM, NBDOS is just used to
+5: For each instance xi ∈ T ic , computing the selection weights for                      ﬁnd the outstanding instances of the considered class. It needs not
+   its k1 neighbor directions, xi .sw : For each x j ∈ xi .Nkc1                           to confront the challenge of accurately discovering sub-concepts.
+   1) If x j ∈ Oic and xi ∈ x j .Nkc1 , then xi .sw(x j ) ← 1 + w1/e                      Another one is to partition the data space of minority class into
+                                                                                          small pieces for reducing the generation of wrong synthetic in-
+   2) If xi ∈ x j .Nkc1 , and x j .sw(xi ) has been computed, then
+                                                                                          stances [8,13]. The oversampling methods motivated by this often
+        xi .sw(x j ) ← x j .sw(xi )
+                                                                                          adopt the agglomerative clustering algorithms with high time com-
+   3) Otherwise, according to xi .F i and xi .F d, choose outthe in-
+                                                                                          plexity. The resulting clusters are usually the hyperspherical shape
+        stances, xi .Ss(x j ), from xi .F s which the distances to xi are
+                                                                                          having size limitation. Our NBDOS which is actually derived from
+        no larger than the distance between xi and x j , then call
+                                                                                          the well-known density-based clustering DBSCAN [20] can discover
+        dP N to obtain all of the instances located in xi .P N (x j ), i.e.,
+                                                                                          the arbitrary shaped clusters with good eﬃciency.
+        NPN ← dP N (xi , x j , xi .Ss(x j )). The selection weight xi .sw(x j )
+        is obtained based on NPN , w1, w2, r 1 and r 2 by using (2) in
+                                                                                          3.1.2. NBDOS: neighborhood-based clustering for discovering the
+        Section 3.2.1.
+                                                                                          clusters of outstanding instances
+6: For each instance xi ∈ T ic , obtain the probability distribution in
+                                                                                              NBDOS is similar with DBSCAN in many regards. The biggest
+   terms of selecting its neighbor directions, xi .P :
+                                                                                          difference between them is that DBSCAN is conducted on the
+   1) For all k1 neighbor directions of xi , if there is no PN neigh-
+                                                                                          whole data to detect the data objects above a certain density level,
+        borhood only containing the instances of class c, add xi itself
+                                                                                          and NBDOS is performed on one-class data to discover the in-
+        to xi .Nkc1 and assign xi .sw(xi ) ← 1 + w1/e.
+                                                                                          stances that lie inside the data regions dominated by this class. We
+   2) For           each       instance        x j ∈ xi .Nkc1 ,   xi .P (x j )    ←       ﬁrst provide some basic deﬁnitions and lemmas in NBDOS, then
+         i        j
+                                   i     l
+        x .sw(x )/ xl ∈xi .Nc x .sw(x ).                                                  present the concrete implementation of NBDOS.
+                             k1
+ 7: For any xi ∈ Sc , obtain the number of synthetic instances to be
+                                                                                          Deﬁnition 1. (soft core instance) For any xi ∈ Sc , if the proportion
+   generated for it (denoted by xi .g) by allocating ζ into the mem-
+                                                                                          of c class instances in its k-nearest neighbors set is not less than
+   bers of Sc as evenly as possible.
+                                                                                          rTh, then xi is a soft core instance of class c.
+8: Generate the synthetic instances set SI. For each xi ∈ Sc :
+   1) If xi ∈ T ic , a neighbor instance x j is selected from xi .Nkc1                        According to Deﬁnition 1, the soft core condition of NBDOS
+      in the weighted sampling way according to the probabil-                             depends on the parameters k and rTh. In DBSCAN, a point p
+      ity distribution xi .P . Otherwise, x j is randomly selected from                   is core point, if its Esp-neighborhood contains at least MinPts
+      xi .Nkc1 .                                                                          points, where Esp-neighborhood of p is a points set NEsp ( p) =
+   2) Using formula (1) to create a synthetic instance si, si ← xi +                      {q | dist ( p, q ) ≤ Esp} and MinPts is threshold to determine whether
+      (x j − xi ). ∗ γ , then SI ← SI ∪ {si}.                                             Esp-neighborhood of p is dense. Similar to the Esp-neighborhood of
+   3) repeat 1) and 2) xi .g times.                                                       DBSCAN, we correspondingly give a deﬁnition of Gkc -neighborhood.
+
+                                                                                          Deﬁnition 2. (Gkc -neighborhood) For any soft core instance of class
+                                                                                          c, xi , its Gkc -neighborhood is deﬁned as a instances set Hkc (xi ) =
+                                                                  T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                             331
+
+
+{xi } ∪ {x j ∈ xi .Nk |x j is a instance of class c} ∪ {xj ∈ xi .RNk |xj is a soft             Algorithm 2 NBDOS(Sc , k, Sc .Nk , rTh, nTh).
+core instance of class c}, where Nk and NRk denote k-nearest and                               Input: Sc : The instances of class c; k: The number of nearest
+reverse k-nearest neighbors set, respectively.                                                   neighbors; Sc .Nk : The k-nearest neighbors lists of Sc ; rT h:
+                                                                                                 The minimal proportion of c class instances which should be
+     To detect the arbitrarily shaped regions dominated by class c,
+                                                                                                 achieved for the soft core instances in their k-nearest neighbors;
+NBDOS must satisfy a key condition that Gkc -neighborhood is based
+                                                                                                 nT h: The minimal number of members required for the discov-
+on a binary predicate which is symmetric and reﬂexive [21]. From
+                                                                                                 ered clusters.
+Deﬁnition 2, one can see that, for a soft core instance, its Gkc -
+                                                                                               Output: Sc .cl: The cluster labels of all instances of class c
+neighborhood consists of three parts: this instance itself, all in-
+                                                                                                1: Initialize the soft core instances set to be empty, s f Sc ← ∅
+stances of class c in its Nk and all of the soft core instances of
+                                                                                                2: Initialize the cluster labels of Sc to 0, Sc .cl ← 0
+class c in its NRk . Such a constitution assures that those neighbor-
+                                                                                                3: for all xi ∈ Sc do
+ing instances of class c can be included in its Gkc -neighborhood, and
+                                                                                                4:     T em ← all c class instances in xi .Nk
+Gkc -neighborhood can satisfy reﬂexivity and symmetry (proved in
+Lemma 1). Note that only the soft core instances in NRk are in-                                 5:     if round ( |Temk
+                                                                                                                        |
+                                                                                                                          ) ≥ rT h then
+cluded into Gkc -neighborhood, which makes each instance of Gkc -                               6:          s f S ← s f S c ∪ {xi }
+                                                                                                                 c
+
+neighborhood coming from the dominated regions of class c.                                      7:          Hkc (xi ) ← T em
+                                                                                                8:     end if
+Lemma 1. (the reﬂexivity and symmetry of Gkc -neighborhood) For any                             9: end for
+
+soft core instance xi ∈ Sc , xi ∈ Hkc (xi ); and for any two soft core in-                     10: for all xi ∈ s f Sc do
+                                                                                               11:     T em ← ﬁnd those instances whose k-nearest neighbors in-
+stances xi , xj ∈ Sc , if x j ∈ Hkc (xi ) then xi ∈ Hkc (x j ).
+                                                                                                   clude xi
+                                                                                               12:     Hkc (xi ) ← Hkc (xi ) ∪ (T em ∩ s f Sc )
+Proof. The reﬂexivity: It is obvious for xi ∈ Hkc (xi ) according to the
+                                                                                               13: end for
+deﬁnition of Hkc (xi ). The symmetry: If xi is identical to xj , the sym-                      14: Initialize the current cluster number to 0, curId ← 0
+metry of Gkc -neighborhood apparently hold. If xi is different to xj ,                         15: for all xi ∈ s f Sc do
+x j ∈ Hkc (xi ) means that either xj ∈ xi .Nk , or xj ∈ xi .RNk and xj is a soft               16:     if xi .cl = 0 then
+core instance of class c. For the former, xi ∈ xj .RNk and xi is a soft                        17:          curId ← curId + 1
+core instance, so xi ∈ Hkc (x j ). For the latter, xi ∈ xj .Nk , it also obtains               18:          Sc .cl ← expandC lust er (s f Sc , xi , curId, Sc .cl )
+xi ∈ Hkc (x j ).                                                                              19:     end if
+                                                                                               20: end for
+    The implementation of NBDOS is described in Algorithm 2. In                                21: for i ← 1, curId do
+line 2, the cluster labels of all c class instances are initialized to                         22:     C i ← ﬁnd those instances whose cluster labels are i
+0, which indicates all instances default to the trapped instances.                             23:     if | C i |< nT h thenC i .cl ← 0
+In lines 3 − 13, it ﬁnds all soft core instances of class c and their                          24:     end if
+respective Hkc . In lines 15 − 20, it detects the clusters of outstand-                        25: end for
+ing instances of class c literally. Each time the function of expand-
+Cluster is called to discover a cluster, and the label of cluster is                           26: function expandC lust er(s f Sc , xi , curId, Sc .cl)
+assigned the current cluster number curId.                                                     27:      s fC ← {xi }
+    expandCluster contains four steps to discover a cluster of out-                            28:      xi .cl ← curId
+standing instances. 1) An unmarked soft core instance xi is used                               29:      while s fC = ∅ do
+as the initialized soft core instances set for the current cluster to                          30:           x j ← draw out a instance from s fC
+be discovered, sfC (line 27). 2) Draw out a instance xj from sfC. For                          31:           for all xl ∈ Hkc (x j ) do
+each instance in Hkc (x j ), if it has not been discovered in any pre-                         32:            if xl .cl = 0 then
+vious cluster, curId is assigned to its cluster label (i.e., add this in-                      33:                xl .cl ← curId
+stance into the current cluster, line 33). Furthermore, if it is a soft                        34:                if xl ∈ s f Sc thens f C ← s f C ∪ {xl }
+core instance, add it into sfC (line 34). 3) Remove xj from sfC after                          35:                end if
+the examinations for all instances of Hkc (x j ) (line 38). 4) Repeat 2)                       36:            end if
+and 3) until sfC is empty. The discovering process of current cluster                          37:       end for
+starts with xi and gradually expands by introducing the unmarked                               38:       s f C ← s f C \ {x j }
+instances of class c that are near to those instances existing in the                          39:    end while
+current cluster. The reﬂexivity and symmetry of Gkc -neighborhood                              40:    return Sc .cl
+ensures that, beginning with an arbitrary soft core instance falling                           41: end function
+into a region dominated by class c, expandCluster can exactly ob-
+tain the cluster which corresponds to this region [21].
+    When all soft core instances of class c have been marked (i.e.,                                Some previous works also involved into deﬁning different kinds
+their cluster labels are not equal to 0), the detecting process for the                        for the minority class instances. In literature [22,23], classifying a
+clusters of outstanding instances is ﬁnished. Next, a postprocessing                           minority class instance depends upon the local characteristics of
+is applied to all discovered clusters to drop those clusters that the                          this instance through analyzing its k-nearest neighbors. A instance
+number of members is smaller than nTh by reassigning 0 to the                                  which most of its k-nearest neighbors have the same (/different)
+cluster labels of their members (lines 21 − 25). The outputted Sc .cl                          class with it belongs to the safe (/noise) instances, otherwise it be-
+provides two information: 1) The instances with non-0 cluster la-                              longs to the borderline instances. It should be pointed out that the
+bels belong to the clustering of outstanding instances, and the in-                            outstanding and trapped instances are different from the safe and
+stances whose cluster labels are 0 form the clustering of trapped                              borderline instances, respectively. The former emphasizes whether
+instances (Step 4 of Algorithm 1). 2) For the instances with non-0                             a minority class instance lie in the regions dominated by the class
+cluster label, the different cluster labels correspond to the different                        which it belongs to, while the latter focuses on examining the dis-
+clusters of outstanding instances.                                                             tribution of instances in the k-nearest neighborhood of this single
+332                                                                         T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+                                                                                                         instances in the PN neighborhood of this neighbor direction, re-
+                                                                                                         spectively. Note that both the majority and minority classes men-
+                                                                                                         tioned here do not include class c. The class c is separately treated
+                                                                                                         for convenience. Emi is the entropy value reached by the minority
+                                                                                                         classes in the PN neighborhood (we call Emi the minority class en-
+                                                                                                                                         γ ci   γ ci
+                                                                                                         tropy). It is equal to ( c ∈miC ( mi log mi ))/Zmi , where miC is the
+                                                                                                                                       i     γ       γ
+                                                                                                         set of minority classes and Zmi is the maximum entropy value that
+                                                                                                         can be achieved by the minority classes (i.e., log |miC|). Zmi makes
+Fig. 2. xi is primary reference instance. x1 and x2 are its two neighbors. xix1 and
+                                                                                                         Emi range from 0 to 1. Similarly, Ema is the majority class entropy
+                                                                                                                                     γ ci    γ ci
+xix2 are two neighbor directions of xi . (a) The generalization regions of xix1 and                    and is equal to ( c ∈maC ( γ ma log γ ma ))/Zma , where maC is the set
+                                                                                                                               i
+xix2 . (b) The PN neighborhoods of xix1 and xix2 .
+                                                                                                         of majority classes and Zma is the maximum majority class entropy
+                                                                                                         (i.e., log |maC|). The values of all above variables can be obtained
+minority instance. We present the detailed differences in the sup-                                       according to the class distribution of PN neighborhood. In addition,
+plementary material due to space consideration.                                                          w1, w2, r1 and r2 are four parameters. We describe them below.
+                                                                                                             (2) consists of two parts that respectively consider the over
+3.2. Acquiring the selection probabilities for the neighbor directions                                   generalization factor and the diﬃculty factor. The over generaliza-
+                                                                                                         tion factor concerns the negative effects to other classes if the syn-
+    In SMOM, the selection weight of a neighbor direction reﬂects                                        thetic instances of class c fall into the PN neighborhood. The dif-
+how much probability that it is selected to generate synthetic in-                                       ﬁculty factor highlights the level of diﬃculty for learning the in-
+stances. For the instances of Oic , as mentioned earlier, it is rea-                                     stances of class c. If a PN neighborhood brings lesser over gen-
+sonable that the synthetic instances are randomly created along                                          eralization and has higher degree of learning diﬃculty, its cor-
+their directions of k1-nearest neighbors from class c. SMOM ac-                                          responding neighbor direction will gain higher selection weight.
+tually only computes the selection probabilities for the neighbor                                        However, there is a negative correlation between the over general-
+directions of Tic . There are two steps to obtain the selection proba-                                   ization factor and the diﬃculty factor. w1 is a weighting parameter
+bility distribution on the neighbor directions of a trapped instance:                                    to balance their relative importance. In light of our observation, the
+Firstly, compute the selection weight for each of the k1 neighbor                                        over generalization should be mainly considered for the selection
+directions of this instance. Secondly, convert all of the computed                                       weight. w2 is another weighting parameter to adjust the effect of
+selection weights into a probability distribution.                                                       majority classes for the over generalization factor. As the avoidance
+                                                                                                         of over generalization should put more emphasis on the minority
+3.2.1. The computation of selection weights                                                              classes, the value of w2 should be smaller than 1. In addition, the
+    Consider Fig. 2a, xix1 and xix2 are two neighbor directions of xi .                                                                                 γ mi   γ ma
+                                                                                                         parameters r1 and r2 are used to rescale γ c (/ γ c ) and Emi (/Ema )
+The two shaded rectangular regions are their corresponding gen-
+                                                                                                         by multiplying with them, respectively.
+eralization regions in which the synthetic instances can appear. As
+                                                                                                            In (2), the expression of diﬃculty factor is straightforward.
+selecting which one of neighbor directions is equivalent to ﬁlling                                            γc
+                                                                                                          γ
+                                                                                                          ma  +γ
+                                                                                                               mi  c is the proportion of c class instances in the PN neigh-
+                                                                                                                   +γ
+the synthetic instances in which one of corresponding generaliza-
+tion regions. The computation of selection weight for a neighbor                                         borhood. The lower this proportion is, the larger the diﬃculty fac-
+direction can be transformed to measure how aggressively its gen-                                        tor is. However, the expression of over generalization factor is rel-
+eralization region should place the synthetic instances.                                                 atively complicated. In fact, it is based on the following four im-
+    Two factors need to be considered when the synthetic instances                                       portant observations:
+of class c are ﬁlled into a region. The ﬁrst factor is the risk of over
+generalization. e.g., as shown in Fig. 2a, the generalization region                                      1. For arbitrary two PN neighborhoods, the negative impacts that
+of xix1 is apparently more reliable than the generalization region                                          the synthetic instances of class c may cause to the minor-
+of xix2 . The second factor is the level of diﬃculty with respect                                           ity classes are more signiﬁcant on the PN neighborhood with
+to learning the instances of class c. e.g., compared to the gener-                                                       γ mi                                             γ mi
+                                                                                                              higher γ c . This observation is obvious as higher γ c indicates
+alization region of xix1 , the generalization region of xix2 obviously
+                                                                                                              the minority classes are more dominant in the PN neighbor-
+needs more synthetic instances of class c so that the c class in-
+                                                                                                              hood, the generated synthetic instances of class c are more
+stances within it is able to be learned. To quantify these two fac-                                                                                                              γ mi
+tors, the instances distributed in the generalization region must be                                          likely to be noisy. Consider Fig. 3a, supposing x1 is PRI. The γ c
+acquired before. However, the generalization region is hyperrectan-                                           in x1 .PN(x4 ) and x1 .PN(x5 ) are 22 and 12 , respectively. We can see
+gle. It is unfavorable to locate instances. We use a kind of hyper-                                           that the neighbor direction x1x4 can introduce the synthetic in-
+sphere region to approximatively represent it. As shown in Fig. 2b,                                           stances of class c into a more uncertain region in terms of class
+for the generalization region of xix1 (/xix2 ), a sphere centered at                                        c1 than x1x5 . Therefore, the over generalization factor in (2) is
+the midpoint of xi and x1 (/x2 ), with radius being the half distance                                                                      γ mi
+                                                                                                              positively correlated with γ c .
+between them compactly covers it. We call such sphere the PN                                                                                                       γ mi
+neighborhood due to the characteristic through PRI and its Neigh-                                         2. For arbitrary two PN neighborhoods, if their γ c is equal, the
+bor. Correspondingly, for a neighbor direction xix j , its PN neighbor-                                     negative impacts that the synthetic instances of class c may
+hood is denoted as xi .PN(xj ). The PN neighborhood is employed to                                           cause to the minority classes are more signiﬁcant on the PN
+substitute the generalization region below.                                                                  neighborhood with more minority classes. It can be understood
+    For a neighbor direction, its selection weight is computed as                                            from that if a PN neighborhood includes more minority classes,
+follows :                                                                                                    the synthetic instances of class c can negatively impact the
+          mi                    ma
+      r 1 γγ c +r 2Emi +w2(r 1 γγ c +r 2Ema )         −        γc                                            more minority classes. Observe Fig. 3b, x2 .PN(x1 ) and x2 .PN(x3 )
+1/ e                                     +w1 e  
+                                                   γ ma +γ mi +γ c                             (2)                              γ mi
+                                                                                                              have equal γ c , but x2 .PN(x3 ) involved the minority classes c1
+          overgeneralization f actor                di f f iculty f actor
+                                                                                                              and c . x2x3 can result in that the synthetic instances of class
+                                                                                                                     2
+e is the natural constant.           and γ mi denote the number
+                                           γ c,   γ ma                                                        c are created in the boundary region between c1 and c2 . Both
+of c class instances, majority class instances and minority class                                             c1 and c2 suffer from negative disturbance. The over general-
+                                                                  T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                                    333
+
+
+
+
+                    Fig. 3. The ﬁgures (a)–(c) illustrate three observations with respect to the computation of selection weight for the neighbor direction.
+
+
+
+                                                                                               It should be noted that xi .Nkc1 are just all those instances of class
+                                                                                               c whose distances from xi are no greater than xi .rk1 . The second
+                                                                                               ﬁltration appears before computing NPN for a speciﬁc PN neighbor-
+                                                                                               hood. As shown in Fig. 4b, before computing the NPN of xi .PN(x2 ),
+                                                                                               it can choose out the instances, xi .Ss(x2 ), from xi .Fs which the dis-
+                                                                                               tances to xi are no larger than the distance between xi and x2 . The
+                                                                                               second ﬁltration is presented in step 5.3. xi .Fs and xi .Ss are respec-
+Fig. 4. xi is primary reference instance. x1 , x2 , x3 , x4 and x5 are its k-nearest neigh-    tively the resulting instances set after performing the ﬁrst and sec-
+bors from the same class with it (k is equal to 5 here). Figure illustrates a two-             ond round ﬁltration for xi in the process of ﬁnding NPA .
+round ﬁltration operation. (a) The ﬁrst ﬁltration performed on all PN neighborhoods                Moreover, as the instances belonging to the Ss of a PN neigh-
+of xi . (b) The second ﬁltration performed on the PN neighborhood of xix2 .
+                                                                                               borhood are actually distributed in a hypersphere neighborhood
+                                                                                               whose radius is the double of the radius of this PN neighborhood
+                                                                                               (e.g., as xi .PN(x2 ) and xi .Ss(x2 ) shown in Fig. 4b), Ss may contain
+    ization factor incorporates the number of minority classes into
+                                                                                               many instances not belonging to the corresponding PN neighbor-
+    consideration by using Emi . If there are more minority classes,
+                                                                                               hood. Hence, further examination is needed. The function dPN is
+    the value of Emi that can be reached will be larger. The over
+                                                                                               used to determine which instances from Ss are located in the cor-
+    generalization factor is positively correlated with Emi .
+                                                                                               responding PN neighborhood (Step 5.3). In dPN, the distance of
+                                                                                      γ mi
+3. For arbitrary two PN neighborhoods, if they have the equal γ c                              each instance in Ss to the center of the considered PN neighbor-
+   and the same number of minority classes, the negative impacts                               hood is computed, if the distance is not greater than the radius of
+   that the synthetic instances of class c may cause to the minor-                             PN neighborhood, this instance belongs to NPN (the details of dPN
+   ity classes are more signiﬁcant on the PN neighborhood with                                 are presented in Algorithm 1S in the supplementary material).
+   more uniform distribution of minority classes. The reason is                                    It should be noted that, however, not all of the neighbor di-
+   that if a PN neighborhood is more evenly occupied by differ-                                rections must call dPN to compute their selection weights. Sup-
+   ent minority classes, the synthetic instances generated in this                             posing xi ∈ Tsc , and x j ∈ xi .Nkc1 . If xj ∈ Osc and xi ∈ x j .Nkc1 . It indi-
+   PN neighborhood may be less discriminative. Consider x3 .PN(x6 )                            cates that xi is close enough to a cluster of outstanding instances.
+   and x3 .PN(x2 ) as shown in Fig. 3c, x3x6 makes both minority                              Hence, directly assigning 1 + we1 into xi .sw(xj ) is reasonable (Step
+   class c2 and c1 equally expose to x3 .PN(x6 ) while x3x2 mainly                            5.1), where the “1 + we1 ” implies xi .PN(xj ) is a clean neighborhood
+   crosses the region of c1 . Therefore, the synthetic instances of                            only containing the instances of class c. If xi ∈ x j .Nkc1 , and xj .sw(xi )
+   class c may be more conceptual ambiguity if they are gener-
+                                                                                               has been computed, xj .sw(xi ) can be assigned to xi .sw(xj ) (Step 5.2),
+   ated in x3 .PN(x6 ). Emi is impacted by the evenness extent of mi-
+                                                                                               as xj .PN(xi ) represents the same neighborhood with xi .PN(xj ).
+   nority classes distribution. The more uniform the distribution of
+                                                                                                  We noticed that the oversampling algorithms SL-SMOTE and
+   minority classes is, the larger Emi may be.
+                                                                                               LN-SMOTE [24] were also concerned with the problem of how to
+4. The three observations above are also suitable for considering
+                                                                                               generate safe synthetic instances. They deﬁne the safe level of a
+   the negative impacts to the majority classes. The difference is
+                                                                                               sample as the number of minority class sample in its k-nearest
+   that the over generalization occurring on the majority classes
+                                                                                               neighbors. The synthetic samples are always created closer to the
+   can be paid less attention as compared to the minority classes.
+                                                                                               one having higher safe level in PRI and ARI. However, only con-
+   Hence, (2) uses w2 to adjust the importance of majority classes
+                                                                                               sidering the distribution of instances in the k-nearest neighbor-
+   for the over generalization factor.
+                                                                                               hoods of PRI and ARI may be insuﬃcient for completely covering
+                                                                                               the corresponding generalization region especially when ARI is far
+    The acquisition of selection weight for a neighbor direction con-
+                                                                                               away from PRI. Our SMOM to compute the selection weight for
+tains two parts of works. The ﬁrst part is to ﬁnd all instances lo-
+                                                                                               a neighbor direction is based on considering the whole multiclass
+cated inside the corresponding PN neighborhood, NPN . The second
+                                                                                               distribution in the corresponding PN neighborhood. This PN neigh-
+part is to compute the selection weight based on NPN by using (2).
+                                                                                               borhood contains this neighbor direction’s generalization region in
+Obviously, the former takes most of the computational cost.
+                                                                                               which the synthetic instances may appear. Hence, the computation
+    In order to ﬁnd NPN eﬃciently, we perform a two-round ﬁl-
+                                                                                               of selection weight in our SMOM used more precise and suﬃcient
+tration operation to early exclude those instances which are im-
+                                                                                               information.
+possible to locate in the PN neighborhood. Assuming xi shown in
+Fig. 4a is PRI. x1 , x2 , x3 , x4 and x5 are its k nearest neighbors (k is
+5 here). It is obvious that the distance between xi and x5 , xi .r5 , is                       3.2.2. Convert the selection weights to the selection probabilities
+the maximum value among the distances from xi to the instances                                     Some trapped instances of class c may be potential outliers and
+that lie inside any of the PN neighborhoods of xi . Therefore, be-                             noise. They are likely far away from all other instances of class c.
+fore computing NPN for any PN neighborhood of xi , the ﬁrst ﬁltra-                             Hence, it is possible that the over generalization may be inevitable
+tion can be performed to ﬁnd those instances, xi .Fs, that the dis-                            whichever the neighbor direction is selected. To handle this prob-
+tances to xi are no larger than xi .r5 (i.e., as shown in Fig. 4a, all in-                     lem, SMOM for each trapped instance checks its all neighbor di-
+stances outside the dotted circle can be ignored). The implementa-                             rections ﬁrstly. If there is no PN neighborhood that only contains
+tion of the ﬁrst ﬁltration is given in steps 2.1 − 2.2 of Algorithm 1.                         the instances of class c, add it into its own neighbors set and then
+334                                                          T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+       Table 1
+       Description of characteristics of experimental data sets.
+
+         Data             M        L      F      Class distribution                           Description of classes                                         IR
+
+         vehicle          846      3      18     199/429/218                                  ‘DH’/‘SL’/‘NO’                                                 2.22
+         sat              4374     4      36     1533/626/707/1508                            ‘1’/‘4’/‘5’/‘7’                                                5.31
+         ecoli            327      4      7      143/77/52/35                                 ‘cp’/‘im’/‘pp’/‘imU‘                                           7.86
+         automobile       205      3      71     25/153/27                                    ‘1’&‘2’/‘3’&‘4’&‘5’/‘6’                                        9.87
+         voice9_6         413      6      10     100/43/58/115/59/38                          ‘1’/‘2’&‘9’/‘5’/‘6’/‘7’/‘8’                                    12.11
+         vowel5           990      5      10     180/90/360/270/90                            ‘0’&‘1’/‘2’/‘3’&‘4’&‘5’&‘6’/‘7’&‘8’&‘9’/‘10’                   13.83
+         vowel7           990      7      10     90/180/90/180/90/180/180                     ‘0’/‘1’&‘2’/‘3’/‘4’&‘5’/‘6’/‘7’&‘8’/‘9’&‘10’                   15.00
+         robot            5456     4      4      826/2097/2205/328                            ‘Slight RT’/‘Sharp RT’/‘Move F’/‘Slight LT’                    15.89
+         pendigits        7494     5      16     2339/719/2998/719/719                        ‘1’&‘6’/‘2’&‘3’/‘4’/‘5’                                        16.55
+         page-blocks      560      4      10     329/28/88/115                                ‘0’&‘1’&‘2’/‘3’/‘4’&‘5’&‘6’&‘7’/‘8’/‘9’                        20.91
+         housing5         506      5      13     77/239/123/36/31                             ‘1’/‘2’/‘3’/‘4’/‘5’                                            24.16
+         SWD              10 0 0   4      4      32/352/399/217                               2’/‘3’/‘4’/‘5‘                                                 28.84
+         wine-red         1571     4      11     53/681/638/199                               ‘4’/‘5’/‘6’/‘7’/‘8’                                            30.34
+         voice9_7         413      7      10     100/22/58/115/59/38/21                       ‘1’/‘2’/‘5’/‘6’/‘7’/‘8’/‘9’                                    32.74
+         LEV              10 0 0   5      4      93/280/403/197/27                            ‘0’/‘1’/‘2’/‘3’/‘4’                                            40.41
+         machine          209      5      6      152/27/13/7/10                               ‘1’&‘2’/‘3’&‘4’/‘5’&‘6’/‘7’&‘8’/‘9’&‘10’                       54.46
+         abalone8         2148     8      10     126/203/267/487/634/259/115/57               ‘14’/‘13’/‘12’/‘11’/‘10’/‘6’/‘5’/‘4’                           59.52
+         plates-faults5   1941     5      27     158/72/55/793/863                            ‘1’/‘4’/‘5’/‘3’&‘6’/‘2’&‘7’                                    61.05
+         plates-faults7   1941     7      27     158/190/391/72/55/402/673                    ‘1’/‘2’/‘3’/’4‘/’5’/‘6’/‘7’                                    61.11
+         ESL              488      5      4      62/14/351/28/23                              ‘1’&‘2’/‘3’/‘4’&‘5’&‘6’/‘7’/‘8’&‘9’                            62.73
+         ERA              10 0 0   9      4      92/142/181/172/158/118 /88/31/18             ‘1’/‘2’/‘3’/‘4’/‘5’/‘6’/‘7’/‘8’/‘9’                            79.84
+         yeast5           982      5      8      463/429/35/30/25                             ‘CYT’/‘NUC’/‘EXC’/‘VAC’/‘POX’&‘ERL’                            85.75
+         ERA5             10 0 0   5      4      92/771/88/31/18                              ‘’1’/‘2’/‘3’/‘4’/‘5’                                           93.42
+         yeast7           1055     7      8      463/244/163/51/79/35/20                      ‘CYT’/‘NUC’/‘ME2’/‘ME1’/‘EXC’/‘VAC’/‘POX’                      95.18
+         abalone10        2297     10     10     57/115/259/391/634/487/126/103/67/58         ‘4’/‘5’/‘6’/‘7’/‘10’/‘11’/‘14’/‘15’/‘16’/‘17’                  123.58
+         yeast8           1484     8      8      463/429/244/163/81/44/35/25                  ‘CYT’/‘NUC’/‘MIT’/‘ME3’/‘ME2’&‘VAC’/‘ME1’/‘EXC’/‘POX’&‘ERL’    130.15
+         housing10        506      10     13     22/55/85/154/84/39/29 /7/10/21               ‘1’/‘2’/‘3’/‘4’/‘5’/‘6’/‘7’/‘8’/‘10’                           152.35
+
+
+
+
+assign 1 + w1/e to the selection weight of its own direction (Step                        deﬁned as:
+6.1 of Algorithm 1). A probability distribution in terms of select-
+                                                                                                 
+                                                                                                 C−1
+                                                                                                               Ni
+ing its neighbor directions is obtained by normalizing the selection                      IR =                    −1                                                    (3)
+weights in all of its neighbor directions (Step 6.2).                                                          Nj
+                                                                                                 i=1 j>i
+
+                                                                                          where Ni and Nj correspond respectively to the instance size of
+3.3. Generating the synthetic instances
+                                                                                          class ci and class cj (the classes have been sorted in descending
+                                                                                          order ,i.e., Ni ≥ Nj if j ≥ i). From (3), IR will be equal to 0 if all of
+    The speciﬁc process to create the synthetic instances is pre-
+                                                                                          the classes have the same size.
+sented in step 8. Three elements are needed to generate the syn-
+                                                                                             Note that these experimental data sets vary in size, class distri-
+thetic instances for a instance of class c: 1) Its k1-nearest neigh-
+                                                                                          bution, feature number and IR to ensure a reliable assessment of
+bors from class c. 2) The selection weights (/probabilities) of the
+                                                                                          performance. A few of them (housing5, SWD, LEV, machine, ESL,
+neighbor directions of this instance. 3) The amount of synthetic
+                                                                                          ERA, ERA5 and housing10) are the ordinal regression benchmark
+instances that need to be yielded for this instance (Step 7).
+                                                                                          data, which have been widely used in the ordinal regression liter-
+    One point worth making is that our SMOM generates an equal
+                                                                                          ature [13,25]. The others are available from UCI [26]. As there is
+number of synthetic samples for each minority instance. There
+                                                                                          no criterion to distinguish minority classes and majority classes in
+are some previous oversampling algorithms that provide different
+                                                                                          multiclass imbalance data, we simply classify the classes whose in-
+weights to different minority class instances (a higher weight helps
+                                                                                          stances size greater (/smaller) than M     L as the majority (/minority)
+in creating more synthetic instances for the corresponding minor-
+                                                                                          classes.
+ity instance) [4,8,10]. These methods usually place more emphasis
+                                                                                             Assessment metrics. Recall, precision, and F-measure [21] are
+on the protection of those minority instances near class boundary
+                                                                                          widely discussed single-class metrics in two-class imbalance prob-
+by assigning more weights to them. One potential risk in them is
+                                                                                          lems. Recall and precision respectively assess the completeness and
+that some boundary regions may be overly ﬁlled by the synthetic
+                                                                                          exactness of prediction. F-measure incorporates both of them to
+instances from the considered minority class, resulting in a signif-
+                                                                                          express their tradeoff. Parameter β is used to adjust the relative
+icant deterioration for the classiﬁcation performance of the other
+                                                                                          importance of recall and precision, and is usually set to one.
+classes [4], especially when the total amount of synthetic instances
+required to be generated is large.                                                                   TP                       TP
+                                                                                          Recall =            P recision =
+                                                                                                  TP + FN                   TP + FP
+4. Experimental study                                                                                   (1 + β 2 )Recal l Precision
+                                                                                          F − measure =
+                                                                                                          β 2 Recall + Precision
+4.1. Setup
+                                                                                          In multiclass imbalance problems, MG [27] and MAUC [28] are the
+   Data Sets. 27 multiclass imbalanced data sets are used in                              most commonly used measures. They are respectively deﬁned as:
+our experiments. Their detailed characteristics are summarized in                                     |C |
+                                                                                                                         1
+                                                                                                                        |C |
+                                                                                                                                               2        
+Table 1. M, L, and F respectively denote the number of instances,
+                                                                                           MG =              Recallci          MAUC =                      (c , c ))
+                                                                                                                                                          (A
+classes and features in the data set. The column of “Description of
+                                                                                                      i=1
+                                                                                                                                        |C |(|C | − 1 )
+                                                                                                                                                      i< j
+                                                                                                                                                              i   j
+
+classes” shows which original classes of prediction domain consti-
+tuted the class distribution of experimental data. IR is the overall                      where C is the set of classes; Recallci is the recall on class ci ;
+imbalanced degree measured for multiclass imbalanced data. It is                                       (i| j ) + A
+                                                                                          (c , c ) = [A
+                                                                                          A                                    (i| j ) is the probability that a ran-
+                                                                                                                  ( j|i )]/2, A
+                                                                                             i   j
+                                                       T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                            335
+
+
+Table 2
+Average performance results (meanSD ), and mean ranks of NONE, ROS, SMOTE, ADASYN, SL-SMOTE, MWMOTE, MDO and SMOM over all data sets (the results of ADASYN,
+SL-SMOTE and MWMOTE are displayed in gray as they are originally prepared to handle two-class imbalanced data).
+
+
+
+
+domly drawn member of class cj will have a lower estimated prob-                    For ADASYN, SL-SMOTE and MWMOTE, the class transformation
+ability of belonging to class ci than a randomly drawn member of                    is used to handle multiclass, i.e., when oversampling one of the
+class ci . In our experiments, MG, MAUC, recall and precision are                   minority classes, the other classes are taken as the corresponding
+together used as assessment metrics (we only compute recall and                     majority class. With respect to the parameter settings, there are
+precision for the smallest minority class following the suggestion                  a series of parameters in SMOM. Among of them, k1, w1 and w2
+of [3,7]). The performance results on each data set are obtained                    are three key parameters, nTh should be set to a value near k1,
+from the average of 10 independent runs with stratiﬁed 10-fold                      and the impacts of rTh and k2 are more reﬂected on the eﬃciency
+cross validation.                                                                   of SMOM rather than the effectiveness. Given the space limitation,
+    Base classiﬁer. Four frequently-used base classiﬁers are se-                    a detailed explanation on how to set the appropriate values for
+lected for our experiments, including C4.5 decision tree (C4.5),                    the parameters of SMOM is provided in the supplementary ma-
+AdaBoost.M1 ensemble of C4.5 (AdaBoost(C4.5)), Multilayer per-                      terial. We set their values as follows: k1 = 12, k2 = 8, rT h = 5/8,
+ceptrons (MLP) and Naive Bayes (NB). All classiﬁers are built by                    nT h = 10, w1 = 0.2, w2 = 1/2, r1 = 1/3 and r2 = 0.2. For all of the
+weka [29]. The changes for their default weka parameters are de-                    other compared algorithms, the default parameter values are used
+scribed as follows: C4.5 uses Laplace smoothing; Adaboost.M1 uses                   if not otherwise speciﬁed.
+51 [7] boosting iterations; the network of MLP is trained to 500
+epoches with a learning rate of 0.1, and the number of hidden layer
+                                                                                    4.2. Experimental results and analyses
+neurons is set to be 10; NB employs supervised discretization.
+    Compared algorithms. We compare SMOM with six exist-
+                                                                                       Experiment 1. Table 2 summarizes the average performance re-
+ing algorithms, including ROS, SMOTE, ADASYN, SL-SMOTE, MW-
+                                                                                    sults (meanSD ) and mean ranks of NONE, six previous oversampling
+MOTE and MDO. The standardized Euclidean distance is applied
+                                                                                    algorithms and our SMOM over all data sets (the complete results
+to measure the distance between instances. All classes are over-
+                                                                                    are summarized in Table S3, S4, S5, S6, S7, S8, S9 and S10), where
+sampled until they contain as many instances as the largest one.
+                                                                                    NONE denotes the experimental results with no oversampling. Best
+336                                                    T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+Table 3
+Signiﬁcance tests of MG, MAUC, recall and precision between SMOM and each of NONE, ROS, SMOTE, ADASYN, SL-SMOTE, MWMOTE, and MDO (the results associated with
+ADASYN, SL-SMOTE and MWMOTE are displayed in gray as they are originally prepared to handle two-class imbalanced data).
+
+
+
+
+and worst results are highlighted in bold and italics, respectively.                    In terms of precision, the OMR of SL-SMOTE is best, followed by
+From Table 2, we can see that SMOM acquires the lowest mean                         NONE, SMOM. Contrasting the recall and precision performances
+ranks over various base classiﬁers for MG, MAUC and recall.                         of SL-SMOTE, SL-SMOTE has better precision but worse recall than
+   In terms of MG, the mean ranks of all oversampling algorithms                    the other oversampling algorithms. It indicates that SL-SMOTE
+are obviously lower than NONE. It indicates that oversampling                       makes the learning models ignore the learning for the smallest mi-
+techniques can signiﬁcantly improve the recognizing ability for the                 nority class on some level, and fewer instances are classiﬁed to the
+minority classes. The reasons are that MG is the geometric mean of                  smallest minority class as compared to the other algorithms, lead-
+recall over all classes and the minority classes usually have lower                 ing to a higher precision but lower recall.
+prediction accuracies. Hence, the boost of MG will largely depend                       Furthermore, we conduct Wilcoxon signed-ranks test [30] to
+on the performance improvement of minority classes. This can also                   evaluate whether SMOM can statistically outperform the other
+be partly conﬁrmed by observing the experimental results in MG                      compared algorithms. The results are presented in Table 3. The
+and recall. The ranking results of the compared oversampling al-                    symbols “++” (/“−−”) and “+∗ ” (/“−∗ ”) denote that SMOM is statis-
+gorithms, in these two metrics, are of a high similarity, for which                 tically better (/worse) than the considered algorithm at the signiﬁ-
+SMOM obtains the lowest Overall Mean Rank (OMR), followed by                        cance level of 0.05 and 0.1, respectively; “+” signiﬁes that SMOM
+SMOTE, ADASYN. Different from MG and recall, many compared                          is only quantitatively better, whereas “−” implies the contrary.
+oversampling algorithms show close or even worse mean ranks                         As shown in Table 3, SMOM often signiﬁcantly outperforms the
+in MAUC as compared to NONE. This result shows that not all                         other algorithms in terms of MG, MAUC and recall. For precision,
+oversampling techniques are effective in MAUC when dealing with                     SMOM has no distinct advantage, and even it is signiﬁcantly worse
+multiclass imbalanced data.                                                         than SL-SMOTE over C4.5, AdaBoost and MLP. We further compare
+                                                        T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                               337
+
+
+Table 4
+Average performance results (meanSD ), and mean ranks of SMOTE (k=12), ADASYN (k = 12), SL-SMOTE (k = 12) and SMOM over all data sets (the results of ADASYN and
+SL-SMOTE are displayed in gray as they are originally prepared to handle two-class imbalanced data).
+
+
+
+
+SMOM with SL-SMOTE in terms of F-measure as it is a good trade-                      last three are the average AUCs that are respectively formed by
+off between recall and precision. The results are provided inTable                   means of averaging pairwise comparisons between any two ma-
+S11 and S12, which shows SMOM is superior to SL-SMOTE over all                       jority classes, between one of the majority classes and one of the
+base classiﬁers.                                                                     minority classes, and between any two minority classes. We call
+    Experiment 2. As SMOM uses a higher value for the parame-                        them MAUCmajs , MAUCma j−min and MAUCmins in sequence. Table 6
+ter k (i.e., k1 = 12) in comparison with previous k-NN-based over-                   presents the results of signiﬁcance test between SMOM and SMOTE
+sampling approaches such as SMOTE, ADASYN and SL-SMOTE (their                        (k = 12) in these ﬁve metrics with C4.5 classiﬁer. One can see that
+default setting about k is 5), it cannot rule out the possibility that               SMOM statistically outperforms SMOTE in recallmins , MAUCma j−min
+the superiority of SMOM, in experiment 1, is due to simply em-                       and MAUCmins . In fact, the similar observation also exist in the
+ploying a different value for parameter k. This experiment inves-                    experimental results of other three classiﬁers, which can be seen
+tigates whether the k1 conﬁgured to a higher value is the reason                     from Table S18, S19 and S20.
+that SMOM shows the excellence above.                                                    Further analysis. As previous k-NN-based oversampling algo-
+    Like SMOM, we set the k of SMOTE, ADASYN, and SL-SMOTE to                        rithms create the synthetic instances in the directions of k-nearest
+be 12. If the considered class has less than 12 instances, k is re-                  neighbors randomly, it can cause that synthetic instances may be
+set to the number of instances of this class minus one for all com-                  wrongly generated in the data regions of other classes, which is
+pared algorithms. Table 4 exhibits the results of mean rank (the de-                 harmful to constructing the prediction model with good general-
+tailed results are provided in Table S13, S14, S15 and S16). In terms                ization ability [3]. Our SMOM assigns the selection weights to the
+of MG, MAUC and recall, SMOM still obtains the best mean ranks                       neighbor directions by considering the over generalization factor.
+over all classiﬁers. In terms of precision, the OMR of SL-SMOTE is                   The neighbor directions which can result in serious over general-
+the lowest, followed by SMOM. It is worth noting that although                       ization will be given small weights. Hence, SMOM has ability to
+SL-SMOTE is also devoted to reduce over generalization, it is the                    avoid over generalization. By means of this property, SMOM is ap-
+worst approach in MG, MAUC and recall. The reason may be that                        propriate to conﬁgure a high value of k for better protecting minor-
+PRI and ARI tend to be far away from each other when k is set                        ity class instances, and does not have to concern the resulting neg-
+to a high value, utilizing their safe levels which only consider the                 ative effects to some extent. It can help to explain why SMOM, as
+instance distribution in the k-nearest neighborhoods is not enough                   compared to other oversampling algorithms, has a larger improve-
+for safely generating the synthetic instances. Conversely, it may re-                ment in the prediction accuracies of minority classes (i.e., higher
+strain synthetic instances to open minority class regions.                           recall and recallmins ) and is more able to balance the recognition
+    Table 5 presents the corresponding Wilcoxon signed-ranks test                    among different classes (i.e., higher MG).
+results. We can ﬁnd that SMOM maintains almost all statistical dif-                      In addition, the mechanism of avoiding over generalization in
+ferences with the compared algorithms in MG, MAUC and recall. It                     SMOM suppresses the invasion of synthetic instances for the re-
+means that the performance advantages of SMOM come from its                          gions of incorrect classes (especially incorrect minority classes)
+own oversampling mechanism rather than the difference of k.                          when oversampling one class. It can effectively reduce the over-
+    Experiment 3. One interesting question is where is the su-                       lapping occurred in minority classes, and ﬁnally promotes the
+periority of SMOM over previous k-NN-based oversampling ap-                          learnability of all minority classes. Hence, the resulting classi-
+proaches? To this end, we compare SMOM with SMOTE (k = 12)                           ﬁer will be better at distinguishing the minority class from the
+further. Five performance metrics were reﬁned. The ﬁrst two are                      majority classes and from the other minority classes (i.e., higher
+the average recall on the majority classes and minority classes, re-                 MAUCmin−ma j and MAUCmins ).
+spectively. They are denoted by recallmins and recallmajs in turn. The
+338                                                               T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+Table 5
+Signiﬁcance tests of MG, MAUC, recall and precision between SMOM and each of SMOTE (k=12), ADASYN (k = 12), and SL-SMOTE (k = 12) (the results associated with
+ADASYN and SL-SMOTE are displayed in gray as they are originally prepared to handle two-class imbalanced data).
+
+
+
+
+Table 6
+Signiﬁcance test results between SMOM and SMOTE (k = 12) in terms of recallmajs , recallmins , MAUCmajs , MAUCma j−min , and MAUCmins with C4.5 as the base classiﬁer.
+
+  Method            Recallmajs                    Recallmins                         MAUCmajs                             MAUCma j−min                  MAUCmins
+
+                    Avg-Result      Mean rank     Avg-Result           Mean rank     Avg-Result           Mean rank       Avg-Result       Mean rank    Avg-Result      Mean rank
+
+  SMOTE             0.695 ± 0.226   1.426         0.627 ± 0.238        1.833         0.803 ± 0.143        1.463           0.86 ± 0.1       1.685        0.857 ± 0.128   1.704
+  (k = 12)
+  SMOM              0.691 ± 0.224   1.574         0.639 ± 0.234   1.167              0.803 ± 0.143    1.537               0.862 ± 0.1     1.315         0.859 ± 0.129   1.296
+  T=min{R+ , R− }     min{183, 195} = 183(− )     min{331.5, 46.5} =46.5(++)          min{108.5, 122.5} = 108.5(− )         min{269, 109} =109(+∗ )     min{289.5, 88.5} =88.5(++)
+
+
+
+
+5. Conclusion                                                                                       The effectiveness of SMOM is evaluated on 27 multiclass im-
+                                                                                                balanced data sets with C4.5, AdaBoost.M1 ensemble of C4.5, MLP
+    In this paper, we proposed a k-NN-based synthetic oversam-                                  and NB as the base classiﬁers. Six typical existing oversampling ap-
+pling algorithm, SMOM, to deal with multiclass imbalanced prob-                                 proaches are selected to compare our SMOM. The experimental re-
+lems. In SMOM, each of the neighbor direction is assigned a se-                                 sults show that SMOM often statistically outperformed other com-
+lection weight of being the direction of generating synthetic in-                               pared methods in terms of MG, MAUC and recall.
+stances. The neighbor directions which may cause serious over                                       As our current SMOM is only suitable to handle continuous at-
+generalization will be given small selection weights. In this way,                              tributes, we intend to generalize SMOM to deal with the imbal-
+SMOM builds a mechanism of avoiding over generalization. This                                   anced data with nominal and ordinal attributes in future work.
+mechanism provides two main advantages: 1) SMOM can safely
+and effectively broaden the regions of minority classes by simply                               Conﬂict of interest
+referencing more neighbor directions. 2) It emphasizes on prevent-
+ing the synthetic instances of one minority class from falling in the                                  None declared.
+regions of other minority classes, so the class overlapping among
+minority classes can be restricted. Our experiment results demon-                               Acknowledgments
+strated that SMOM can obtain the higher prediction accuracy and
+the better distinguishing ability for the minority classes than the                                This work was supported in part by the National Natural Sci-
+compared oversampling algorithms.                                                               ence Foundation of China (Project No. 61472125) and CERNET In-
+    We do not shun the point that the implementation of SMOM                                    novation Project (No. NGII20150407).
+seems to be complex. This is mainly because it involves the clus-
+tering algorithm NBDOS and the two-round ﬁltration. Both NBDOS                                  Supplementary material
+and two-round ﬁltration are used to reduce the time cost of
+SMOM. The computation of selection weights for a part of minor-                                    Supplementary material associated with this article can be
+ity class instances can be avoided by applying NBDOS, and utiliz-                               found, in the online version, at 10.1016/j.patcog.2017.07.024
+ing the two-round ﬁltration can save a lot of distance calculations                             References
+between instances. Experiments show that the time consuming of
+SMOM is near that of existing simple algorithms such as ADASYN                                       [1] H. He, E.A. Garcia, Learning from imbalanced data, IEEE Trans. Knowl. Data
+in practice (the complexity analysis is provided in the supplemen-                                       Eng. 21 (9) (2009) 1263–1284.
+                                                                                                     [2] N.V. Chawla, K.W. Bowyer, L.O. Hall, W.P. Kegelmeyer, Smote: synthetic minor-
+tary material).
+                                                                                                         ity over-sampling technique, J. Mach. Learn. Res. (2002) 321–357.
+                                                               T. Zhu et al. / Pattern Recognition 72 (2017) 327–340                                                          339
+
+
+ [3] L. Abdi, S. Hashemi, To combat multi-class imbalanced problems by means                [17] G.E. Batista, R.C. Prati, M.C. Monard, A study of the behavior of several methods
+     of over-sampling techniques, IEEE Trans. Knowl. Data Eng. 28 (1) (2016) 238–                for balancing machine learning training data, ACM Sigkdd Explor. Newslett. 6
+     251.                                                                                        (1) (2004) 20–29.
+ [4] S. Chen, H. He, E.A. Garcia, Ramoboost: ranked minority oversampling in                [18] H. Cao, X.-L. Li, D.Y.-K. Woon, S.-K. Ng, Integrated oversampling for imbal-
+     boosting, IEEE Trans. Neural Networks 21 (10) (2010) 1624–1642.                             anced time series classiﬁcation, IEEE Trans. Knowl. Data Eng. 25 (12) (2013)
+ [5] P. Lim, C.K. Goh, K.C. Tan, Evolutionary cluster-based synthetic oversampling               2809–2822.
+     ensemble (eco-ensemble) for imbalance learning, IEEE Trans. Cybern. (2016).            [19] J. Wu, H. Xiong, J. Chen, Cog: local decomposition for rare class analysis, Data
+ [6] M. Lin, K. Tang, X. Yao, Dynamic sampling approach to training neural net-                  Min. Knowl. Disc. 20 (2) (2010) 191–220.
+     works for multiclass imbalance classiﬁcation, IEEE Trans. Neural Networks              [20] M. Ester, H.-P. Kriegel, J. Sander, X. Xu, A density-based algorithm for discov-
+     Learn. Syst. 24 (4) (2013) 647–660.                                                         ering clusters in large spatial databases with noise, in: Proc. ACM SIGKDD Int.
+ [7] S. Wang, X. Yao, Multiclass imbalance problems: analysis and potential solu-                Conf. Knowl. Discovery Data Mining, 96, 1996, pp. 226–231.
+     tions, IEEE Trans. Syst., Man Cybern. B, Cybern. 42 (4) (2012) 1119–1130.              [21] J. Sander, M. Ester, H.-P. Kriegel, X. Xu, Density-based clustering in spatial
+ [8] S. Barua, M.M. Islam, X. Yao, K. Murase, Mwmote–majority weighted minority                  databases: the algorithm gdbscan and its applications, Data Mining Knowl. Dis-
+     oversampling technique for imbalanced data set learning, IEEE Trans. Knowl.                 covery 2 (2) (1998) 169–194.
+     Data Eng. 26 (2) (2014) 405–425.                                                       [22] K. Napierala, J. Stefanowski, Identiﬁcation of different types of minority class
+ [9] B. Wang, N. Japkowicz, Imbalanced data set learning with synthetic samples,                 examples in imbalanced data, in: Hybrid artiﬁcial intelligent systems, Springer,
+     in: Proc. IRIS Machine Learning Workshop, 2004, p. 19.                                      2012, pp. 139–150.
+[10] H. He, Y. Bai, E.A. Garcia, S. Li, Adasyn: Adaptive synthetic sampling approach        [23] J.A. Sáez, B. Krawczyk, M. Woźniak, Analyzing the oversampling of differ-
+     for imbalanced learning, in: Proc.Intĺ J. Conf. Neural Networks, IEEE, 2008,               ent classes and types of examples in multi-class imbalanced datasets, Pattern
+     pp. 1322–1328.                                                                              Recognit. 57 (2016) 164–178.
+[11] K.S.    Bunkhumpornpat        Chumphol,      C.   Lursinsap,    Safe-level-smote:      [24] T. Maciejewski, J. Stefanowski, Local neighbourhood extension of smote for
+     Safe-level-synthetic minority over-sampling technique for handling the class                mining imbalanced data, in: Computational Intelligence and Data Mining
+     imbalanced problem, in: In Paciﬁc-Asia Conference on Knowledge Discovery                    (CIDM), 2011 IEEE Symposium on, IEEE, 2011, pp. 104–111.
+     and Data Mining, Springer Berlin Heidelberg, 2009, pp. 475–482.                        [25] W. Chu, Z. Ghahramani, Gaussian processes for ordinal regression, J. Mach.
+[12] R. Anand, K. Mehrotra, C.K. Mohan, S. Ranka, Eﬃcient classiﬁcation for multi-               Learn. Res. 6 (2005) 1019–1041.
+     class problems using modular neural networks, IEEE Trans. Neural Networks 6            [26] A. Frank, A. Asuncion, et al., Uci machine learning repository(2010).
+     (1) (1995) 117–124.                                                                    [27] Y. Sun, M.S. Kamel, Y. Wang, Boosting for learning multiple classes with
+[13] I. Nekooeimehr, S.K. Lai-Yuen, Cluster-based weighted oversampling for ordinal              imbalanced class distribution, in: Proc. Intĺ Conf. Data Mining, IEEE, 2006,
+     regression (cwos-ord), Neurocomputing 218 (2016) 51–60.                                     pp. 592–602.
+[14] N. Japkowicz, S. Stephen, The class imbalance problem: a systematic study, In-         [28] D.J. Hand, R.J. Till, A simple generalisation of the area under the roc curve for
+     tell. Data Anal. 6 (5) (2002) 429–449.                                                      multiple class classiﬁcation problems, Mach. Learn. 45 (2) (2001) 171–186.
+[15] G.M. Weiss, Mining with rarity: a unifying framework, ACM SIGKDD Explo-                [29] I.H. Witten, E. Frank, Data mining: practical machine learning tools and tech-
+     rations Newsletter 6 (1) (2004) 7–19.                                                       niques, Morgan Kaufmann, 2005.
+[16] T. Jo, N. Japkowicz, Class imbalances versus small disjuncts, ACM Sigkdd Ex-           [30] G.W. Corder, D.I. Foreman, Nonparametric statistics: a step-by-step approach,
+     plorations Newsletter 6 (1) (2004) 40–49.                                                   John Wiley & Sons, 2014.
+340                                                         T. Zhu et al. / Pattern Recognition 72 (2017) 327–340
+
+
+Tuanfei Zhu received the BS degree in information and computing science from Zhengzhou University of Light Industry, China, in 2005, and the MS degree in computer
+science from Sichuan University, China, in 2012. Since 2014, he has been working toward the PhD degree in the College of Information Science and Engineering, Hunan
+University. His research interests include class imbalance learning, ensemble learning, online learning and multilabel learning.
+
+
+Yaping Lin received the BS degree in computer application from Hunan University, China, in 1982, and the MS degree in computer application from the National University
+of Defense Technology, China, in 1985. He received the PhD degree in control theory and application from Hunan University in 20 0 0. He has been a professor and a PhD
+supervisor in Hunan University since 1996. From 20 04–20 05, he was a visiting researcher at the University of Texas at Arlington. His research interests include machine
+learning, network security, and wireless sensor networks. He is a member of the IEEE.
+
+
+Yonghe Liu received his BS and MS degrees in control theory and engineering from Tsinghua University, Beijing, China, in 1998 and 1999, respectively. He received the PhD
+degree in computer engineering from Rice University, USA, in 2003. He is an associate professor at the Department of Computer Science and Engineering in University of
+Texas at Arlington, USA. His experience includes working for the DSP Solutions R&D Center at Texas Instruments. His current research interests are in wireless networking,
+media access control and system integration.
+
