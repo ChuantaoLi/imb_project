@@ -1,9 +1,12 @@
 # =============================================================================
 # Benchmark Configuration for run_all.py
 # =============================================================================
-# If this file is missing or a field is empty/omitted, the default behaviour is
-# "run everything": auto-discover all models under Model/ and all datasets under
-# Dataset/KEEL/5fold/ + Dataset/Bearing_IR/.
+# 规则（每一项独立生效）：
+#   - 不写该字段         → 自动发现全部
+#   - 写 []              → 排除该类别，不运行任何
+#   - 写 [a, b, ...]     → 只运行指定的
+#
+# CLI 参数 (--models, --datasets 等) 会覆盖 YAML 中的对应设置。
 #
 # Usage:
 #   python run_all.py                        # use this config
@@ -12,8 +15,8 @@
 # =============================================================================
 
 # ---------------------------------------------------------------------------
-# Models to run (MODEL_KEY values, e.g. "soup", "DBCF", "mc_ccr").
-# Leave empty to auto-discover ALL models from Model/ that expose build().
+# Models（MODEL_KEY 值，如 "soup", "DBCF", "mc_ccr"）
+# [] 或不写 = 自动发现 Model/ 下所有模型
 # ---------------------------------------------------------------------------
 models: []
 # models:
@@ -23,47 +26,62 @@ models: []
 #   - spe
 
 # ---------------------------------------------------------------------------
-# KEEL datasets to run (folder names under Dataset/KEEL/5fold/).
-# Leave empty to auto-discover ALL.
+# KEEL datasets（Dataset/KEEL/5fold/ 下的文件夹名）
+# [] = 排除全部 KEEL；不写 = 自动发现全部
 # ---------------------------------------------------------------------------
-datasets: []
+datasets: []    # 排除 KEEL
 # datasets:
 #   - ecoli1
 #   - glass0
 #   - yeast1
 
 # ---------------------------------------------------------------------------
-# Bearing datasets
+# Bearing datasets（Dataset/Bearing_IR/ 下）
+# names: 数据集名 (CWRU, Gearbox, HUST, JNU, MFPT, Ottawa, SEU, XJTU)
+# irs:   不平衡率 (5, 10, 20, 30)
+# [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
 bearing:
-  # Bearing names: CWRU, Gearbox, HUST, JNU, MFPT, Ottawa, SEU, XJTU
-  # Leave empty for all.
-  names: []
-  # Imbalance ratios. Leave empty for all (5, 10, 20, 30).
-  irs: [5, 10, 20, 30]
+  names: []      # [] = 不运行任何 Bearing 数据集
+  irs: []        # [] = 不运行任何 IR
+# bearing:
+#   names:
+#     - CWRU
+#     - JNU
+#   irs:
+#     - 10
+#     - 20
 
 # ---------------------------------------------------------------------------
-# NIDS datasets (Dataset/NIDS/*.csv)
+# NIDS datasets（Dataset/NIDS/*.csv）
+# names: 数据集名 (NSL-KDD, UNSW-NB15)
+# [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
 nids:
-  # Dataset names: NSL-KDD, UNSW-NB15
-  # Leave empty for all.
-  names: []
+  names: []      # [] = 不运行任何 NIDS 数据集
+# nids:
+#   names:
+#     - NSL-KDD
+#     - UNSW-NB15
 
 # ---------------------------------------------------------------------------
-# Heart datasets (Dataset/Heart/*.csv)
+# Heart datasets（Dataset/Heart/*.csv）
+# names: 数据集名 (10Ydata, 7Ydata, Framingham, SPECTF)
+# [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
 heart:
-  # Dataset names: 10Ydata, 7Ydata, Framingham, SPECTF
-  # Leave empty for all.
-  names: []
+  names: []      # [] = 不运行任何 Heart 数据集
+# heart:
+#   names:
+#     - 10Ydata
+#     - Framingham
 
 # ---------------------------------------------------------------------------
 # Run mode
-#   smoke : 1 fold, smoke=True model configs — fast sanity check
-#   full  : all folds with paper-faithful model configs
+#   smoke : 1 fold, smoke=True model configs — 快速验证
+#   full  : 5 folds, paper-faithful model configs — 完整 benchmark
 # ---------------------------------------------------------------------------
-mode: smoke  # smoke | full
+mode: full  # smoke | full
 
 # Number of folds (null = auto: smoke→1, full→5)
 n_folds: null
@@ -83,7 +101,7 @@ output:
   file: null
 
 # ---------------------------------------------------------------------------
-# Model-specific parameter overrides (passed to build() as kwargs).
+# Model-specific parameter overrides (passed to build() as kwargs)
 # Keys are MODEL_KEY values; values are dicts of build() parameter overrides.
 # Parameters not listed here use the model's default values.
 # ---------------------------------------------------------------------------

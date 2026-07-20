@@ -33,9 +33,16 @@ INLAND, BORDERLINE, TRAPPED = 0, 1, 2
 
 
 def _pairwise_distances(X):
+    """Squared-expansion pairwise Euclidean distances (only (n,n) intermediates).
+
+    Uses ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a·b^T to avoid the (n, n, d)
+    broadcast that otherwise allocates 62+ GiB for mid-sized datasets.
+    """
     X = np.asarray(X, dtype=float)
-    diff = X[:, None, :] - X[None, :, :]
-    return np.sqrt(np.sum(diff * diff, axis=2))
+    sq = np.sum(X ** 2, axis=1)                     # (n,)
+    dist_sq = sq[:, None] + sq[None, :] - 2 * np.dot(X, X.T)
+    dist_sq = np.maximum(dist_sq, 0.0)               # clip float round-off
+    return np.sqrt(dist_sq)
 
 
 class NROMM(Resampler):

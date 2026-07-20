@@ -194,7 +194,7 @@ def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
             d = os.path.join(keel_root, name)
             if not (os.path.isdir(d) and os.path.isfile(os.path.join(d, "fold1_train.csv"))):
                 continue
-            if keel_filter and name not in keel_filter:
+            if keel_filter is not None and name not in keel_filter:
                 continue
             out.append(DatasetDescriptor(name=name, source="keel", keel_name=name))
 

@@ -518,17 +518,35 @@ class CascadeForestChannel:
         return p / len(sub_forests)
 
     def fit(self, X, y):
-        # stratified growing / estimating split for adaptive-depth early stopping
-        if self.grow_ratio < 1.0 and len(np.unique(y)) > 1:
-            Xg, Xe, yg, ye = train_test_split(X, y, train_size=self.grow_ratio, stratify=y, random_state=self.rng.randint(1 << 30))
+        # --- stratified growing / estimating split for adaptive-depth early
+        #     stopping.  Only attempt stratification when every class has ≥2
+        #     samples; otherwise fall back to a plain (non-stratified) split or
+        #     use the full set for both.
+        min_cls_full = np.min(np.bincount(y)) if len(y) else 0
+        can_stratify = min_cls_full >= 2
+        if self.grow_ratio < 1.0 and len(np.unique(y)) > 1 and can_stratify:
+            Xg, Xe, yg, ye = train_test_split(
+                X, y, train_size=self.grow_ratio, stratify=y,
+                random_state=self.rng.randint(1 << 30))
+        elif self.grow_ratio < 1.0 and len(np.unique(y)) > 1:
+            # Not enough samples per class for stratification — plain split
+            Xg, Xe, yg, ye = train_test_split(
+                X, y, train_size=self.grow_ratio, stratify=None,
+                random_state=self.rng.randint(1 << 30))
         else:
             Xg, Xe, yg, ye = X, X, y, y
 
-        # k stratified folds over the growing set; cap k by the smallest class
+        # --- k stratified folds over the growing set; cap k by the smallest
+        #     class.  When a class has < 2 samples stratified CV is impossible,
+        #     so we fall back to training each forest on ALL growing data (no
+        #     OOF leak-free guarantee, which is acceptable for such tiny sets).
         min_cls = np.min(np.bincount(yg)) if len(yg) else 1
-        k = max(2, min(self.k_fold, min_cls))
-        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=self.rng.randint(1 << 30))
-        folds = [te for _, te in skf.split(Xg, yg)]
+        use_cv = min_cls >= 2
+        if use_cv:
+            k = max(2, min(self.k_fold, min_cls))
+            skf = StratifiedKFold(n_splits=k, shuffle=True,
+                                  random_state=self.rng.randint(1 << 30))
+            folds = [te for _, te in skf.split(Xg, yg)]
 
         best_acc, best_depth = -1.0, 0
         layers = []
@@ -538,20 +556,30 @@ class CascadeForestChannel:
             for _ in range(self.n_forests):
                 sub_forests = []
                 oof = np.zeros((len(yg), self.C))
-                for fi in range(k):
-                    val = folds[fi]
-                    tr = np.concatenate([folds[j] for j in range(k) if j != fi])
-                    forest = self._new_forest(np.random.RandomState(self.rng.randint(1 << 30)))
-                    forest.fit(grow_feat[tr], yg[tr])  # train on k-1 folds
+                if use_cv:
+                    for fi in range(k):
+                        val = folds[fi]
+                        tr = np.concatenate([folds[j] for j in range(k) if j != fi])
+                        forest = self._new_forest(
+                            np.random.RandomState(self.rng.randint(1 << 30)))
+                        forest.fit(grow_feat[tr], yg[tr])
+                        sub_forests.append(forest)
+                        oof[val] = forest.predict_proba(grow_feat[val])
+                else:
+                    # Tiny dataset: train one forest on all growing data
+                    forest = self._new_forest(
+                        np.random.RandomState(self.rng.randint(1 << 30)))
+                    forest.fit(grow_feat, yg)
                     sub_forests.append(forest)
-                    oof[val] = forest.predict_proba(grow_feat[val])  # OOF on fold fi
+                    oof = forest.predict_proba(grow_feat)
                 layer_slots.append(sub_forests)
                 slot_oof.append(oof)
             layers.append(layer_slots)
             v_grow = np.hstack(slot_oof)  # (ng, n_forests*C) = 4C
             grow_feat = np.hstack([Xg, v_grow])  # next-layer input
 
-            acc = accuracy_score(ye, np.argmax(self._predict_proba(Xe, layers), axis=1))
+            acc = accuracy_score(ye, np.argmax(
+                self._predict_proba(Xe, layers), axis=1))
             if acc > best_acc + 1e-6:
                 best_acc, best_depth = acc, L + 1
             else:

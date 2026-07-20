@@ -114,66 +114,70 @@ def build_paper_name_map():
 # Config loading
 # =============================================================================
 
+def _resolve_list(yaml_cfg, key, cli_val):
+    """Resolve a list config value: CLI > YAML.
+
+    YAML semantics (when CLI is not provided):
+      - key missing               → None   (auto-discover all)
+      - key present, value []     → []     (explicitly exclude all)
+      - key present, value [a,b]  → [a,b]  (only those)
+
+    Uses ``in`` to distinguish "key missing" from "key present with []"
+    — avoiding the Python ``or`` trap where ``[] or fallback`` evaluates
+    to ``fallback`` because empty lists are falsy.
+    """
+    if cli_val is not None:
+        return cli_val
+    if key in yaml_cfg:
+        return yaml_cfg[key] or []
+    return None
+
+
 def load_config(config_path="config.yaml", cli_args=None):
     """Load YAML config and merge with CLI arguments (CLI wins).
 
     Returns a dict with all settings resolved.
+
+    Sentinel convention for list fields:
+      None  = "all" (auto-discover / default)
+      []    = "none" (skip this category entirely)
+      [...] = "only these"
     """
     yaml_cfg = _load_yaml(config_path)
     cli = cli_args or {}
 
     # --- mode ---
-    mode = yaml_cfg.get("mode", "smoke")
+    mode = yaml_cfg.get("mode", "full")
     if cli.get("full"):
         mode = "full"
     smoke = (mode != "full")
 
     # --- models ---
-    yaml_models = yaml_cfg.get("models") or []
-    config_models = yaml_models if yaml_models else None  # None = all
-    if cli.get("models") is not None:
-        config_models = cli["models"]
+    # models: [] or missing → all (you always need at least one model;
+    # auto-discovery is the convenient default here)
+    config_models = cli.get("models") if cli.get("models") is not None else (yaml_cfg.get("models") or None)
 
-    # --- datasets ---
-    yaml_datasets = yaml_cfg.get("datasets") or []
-    config_datasets = yaml_datasets if yaml_datasets else None  # None = all
-    if cli.get("datasets") is not None:
-        config_datasets = cli["datasets"]
+    # --- datasets (KEEL), bearing, nids, heart ---
+    # Strict: [] really means "none"; missing key means "all".
+    config_datasets = _resolve_list(yaml_cfg, "datasets", cli.get("datasets"))
 
-    # --- bearing ---
     bearing_cfg = yaml_cfg.get("bearing") or {}
-    config_bearing_names = bearing_cfg.get("names") or None
-    config_irs = bearing_cfg.get("irs") or (5, 10, 20, 30)
-    if cli.get("bearing_names") is not None:
-        config_bearing_names = cli["bearing_names"]
-    if cli.get("irs") is not None:
-        config_irs = cli["irs"]
+    config_bearing_names = _resolve_list(bearing_cfg, "names", cli.get("bearing_names"))
+    config_irs        = _resolve_list(bearing_cfg, "irs",   cli.get("irs"))
 
-    # --- nids ---
     nids_cfg = yaml_cfg.get("nids") or {}
-    config_nids_names = nids_cfg.get("names") or None
-    if cli.get("nids_names") is not None:
-        config_nids_names = cli["nids_names"]
+    config_nids_names = _resolve_list(nids_cfg, "names", cli.get("nids_names"))
 
-    # --- heart ---
     heart_cfg = yaml_cfg.get("heart") or {}
-    config_heart_names = heart_cfg.get("names") or None
-    if cli.get("heart_names") is not None:
-        config_heart_names = cli["heart_names"]
+    config_heart_names = _resolve_list(heart_cfg, "names", cli.get("heart_names"))
 
     # --- folds ---
-    n_folds = yaml_cfg.get("n_folds") or None
-    if n_folds is None:
-        n_folds = 1 if smoke else 5
-    if cli.get("n_folds") is not None:
-        n_folds = cli["n_folds"]
+    n_folds = cli.get("n_folds") or yaml_cfg.get("n_folds") or (1 if smoke else 5)
 
     # --- output ---
     output_cfg = yaml_cfg.get("output") or {}
     save_cm = output_cfg.get("save_cm", True)
-    out_file = output_cfg.get("file") or None
-    if cli.get("out") is not None:
-        out_file = cli["out"]
+    out_file = cli.get("out") or output_cfg.get("file") or None
 
     # --- seed ---
     base_seed = yaml_cfg.get("base_seed", 42)
@@ -182,17 +186,17 @@ def load_config(config_path="config.yaml", cli_args=None):
     model_params = yaml_cfg.get("model_params") or {}
 
     # --- resume ---
-    resume = cli.get("resume", False)  # default False unless --resume
+    resume = cli.get("resume", False)
 
     return {
         "smoke": smoke,
         "mode": mode,
-        "models": config_models,           # None -> all, else list of str
-        "datasets": config_datasets,       # None -> all
-        "bearing_names": config_bearing_names,  # None -> all
-        "irs": tuple(config_irs) if isinstance(config_irs, list) else config_irs,
-        "nids_names": config_nids_names,   # None -> all
-        "heart_names": config_heart_names, # None -> all
+        "models": config_models,              # None=all, []=all (convenience), [...]=only
+        "datasets": config_datasets,          # None=all, []=none, [...]=only
+        "bearing_names": config_bearing_names,# None=all, []=none, [...]=only
+        "irs": tuple(config_irs) if config_irs else (),
+        "nids_names": config_nids_names,      # None=all, []=none, [...]=only
+        "heart_names": config_heart_names,    # None=all, []=none, [...]=only
         "n_folds": n_folds,
         "save_cm": save_cm,
         "out_file": out_file,
@@ -233,8 +237,6 @@ def run_benchmark(config):
     base_seed = config["base_seed"]
     n_folds = config["n_folds"]
     model_params = config["model_params"]
-    nids_names = config["nids_names"]
-    heart_names = config["heart_names"]
 
     # --- discover models ---
     all_avail = discover_models()
@@ -248,6 +250,7 @@ def run_benchmark(config):
         if missing:
             print(f"[run_all] WARNING: requested models not found: {missing}")
     else:
+        # None or [] → auto-discover all
         avail = dict(all_avail)
 
     if not avail:
@@ -256,12 +259,22 @@ def run_benchmark(config):
     # --- paper name mapping ---
     paper_names = build_paper_name_map()
 
-    # --- set up smoke defaults ---
-    datasets = config["datasets"]
+    # --- resolve datasets with strict semantics ---
+    # None = not configured → all; [] = explicitly empty → none; [...] = only those
+    def _filter_set(val):
+        """None → None (no filter / all); [] → empty set (exclude all); [...] → set(...)."""
+        if val is None:
+            return None
+        return set(val) if val else set()
+
+    datasets      = config["datasets"]
     bearing_names = config["bearing_names"]
-    irs = config["irs"]
-    if smoke and datasets is None and bearing_names is None:
-        # smoke mode: one KEEL dataset only, evaluated with all 5 folds.
+    irs           = config["irs"]
+    nids_names    = config["nids_names"]
+    heart_names   = config["heart_names"]
+
+    # --- smoke mode: if nothing is configured, provide a sensible default ---
+    if smoke and datasets is None and bearing_names is None and nids_names is None and heart_names is None:
         datasets = ["ecoli"]
         bearing_names = []
         irs = ()
@@ -271,11 +284,11 @@ def run_benchmark(config):
 
     # --- discover datasets ---
     ds_list = discover_all_datasets(
-        keel_filter=(set(datasets) if datasets else None),
-        bearing_irs=irs,
-        bearing_names=(set(bearing_names) if bearing_names is not None else None),
-        nids_names=(set(nids_names) if nids_names is not None else None),
-        heart_names=(set(heart_names) if heart_names is not None else None))
+        keel_filter=_filter_set(datasets),
+        bearing_irs=irs if irs else (5, 10, 20, 30),
+        bearing_names=_filter_set(bearing_names),
+        nids_names=_filter_set(nids_names),
+        heart_names=_filter_set(heart_names))
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
 
