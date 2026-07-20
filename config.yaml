@@ -1,0 +1,83 @@
+# =============================================================================
+# Benchmark Configuration for run_all.py
+# =============================================================================
+# If this file is missing or a field is empty/omitted, the default behaviour is
+# "run everything": auto-discover all models under Model/ and all datasets under
+# Dataset/KEEL/5fold/ + Dataset/Bearing_IR/.
+#
+# Usage:
+#   python run_all.py                        # use this config
+#   python run_all.py --config my_conf.yaml  # use a different config
+#   python run_all.py --models soup,spe      # CLI overrides config
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Models to run (MODEL_KEY values, e.g. "soup", "DBCF", "mc_ccr").
+# Leave empty to auto-discover ALL models from Model/ that expose build().
+# ---------------------------------------------------------------------------
+models: []
+# models:
+#   - soup
+#   - DBCF
+#   - mc_ccr
+#   - spe
+
+# ---------------------------------------------------------------------------
+# KEEL datasets to run (folder names under Dataset/KEEL/5fold/).
+# Leave empty to auto-discover ALL.
+# ---------------------------------------------------------------------------
+datasets: []
+# datasets:
+#   - ecoli1
+#   - glass0
+#   - yeast1
+
+# ---------------------------------------------------------------------------
+# Bearing datasets
+# ---------------------------------------------------------------------------
+bearing:
+  # Bearing names: CWRU, Gearbox, HUST, JNU, MFPT, Ottawa, SEU, XJTU
+  # Leave empty for all.
+  names: []
+  # Imbalance ratios. Leave empty for all (5, 10, 20, 30).
+  irs: [5, 10, 20, 30]
+
+# ---------------------------------------------------------------------------
+# Run mode
+#   smoke : 1 fold, smoke=True model configs — fast sanity check
+#   full  : all folds with paper-faithful model configs
+# ---------------------------------------------------------------------------
+mode: smoke  # smoke | full
+
+# Number of folds (null = auto: smoke→1, full→5)
+n_folds: null
+
+# Base random seed for reproducibility
+base_seed: 42
+
+# ---------------------------------------------------------------------------
+# Output settings
+# ---------------------------------------------------------------------------
+output:
+  # Output format: xlsx
+  format: xlsx
+  # Save confusion matrices as JSON in Result/ConfusionMatrices/
+  save_cm: true
+  # Output filename (null = auto: benchmark_results.xlsx / Smoke_Results.xlsx)
+  file: null
+
+# ---------------------------------------------------------------------------
+# Model-specific parameter overrides (passed to build() as kwargs).
+# Keys are MODEL_KEY values; values are dicts of build() parameter overrides.
+# Parameters not listed here use the model's default values.
+# ---------------------------------------------------------------------------
+model_params: {}
+# model_params:
+#   DBCF:
+#     n_forests: 8
+#     n_trees: 300
+#   soup:
+#     k: 7
+#     similarity_mode: heur
+#   spe:
+#     n_estimators: 50

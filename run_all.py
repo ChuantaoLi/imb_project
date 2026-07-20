@@ -1,42 +1,26 @@
-"""run_all.py — unified entry for the 30-model multiclass imbalance benchmark.
+"""run_all.py — Unified benchmark runner for multiclass imbalance learning.
 
-Covers the migrated old-5 (SPE/DeepSMOTE/DDPM/DBCF/DEAHS) plus 25 newly
-reproduced survey methods (14 data-resampling + 11 ensemble) on a shared
-benchmark: 115 KEEL 5-fold datasets + 32 constructed Bearing IR{5,10,20,30}
-datasets = 147 datasets, 5-fold CV, 10 imbalance metrics + runtime, pooled
-confusion matrices (dpi=600, Times New Roman).
-
-Design:
-  * All paths RELATIVE (resolved via PROJECT_ROOT); project is relocatable.
-  * Models are discovered DYNAMICALLY: the registry maps a model key to a module
-    path; at run time each module is imported and, if it exposes ``build()``,
-    included. A model that is not yet implemented (or fails to import) is simply
-    skipped with a warning, so this script stays runnable as models are added.
-  * Every model conforms to the uniform contract: ``build(random_state, smoke)``
-    -> an object with ``fit(X,y)`` / ``predict_proba(X)``. The shared runner
-    ``common.base.run_model_on_dataset`` drives the fold loop, scaling, metrics,
-    timing and confusion-matrix export. No per-model split/scale/eval code here.
-  * Incremental atomic CSV write (write to .tmp then os.replace) after every
-    (dataset, model) cell, so a crash mid-run never discards finished cells.
-
-Modes:
-  smoke (DEFAULT): 1 dataset, 1 fold, smoke=True model configs. Fast end-to-end
-                   sanity check. NOT a benchmark.
-  full  (--full):  all datasets, 5 folds, smoke=False (paper-faithful configs).
+Auto-discovers models from Model/ and datasets from Dataset/.
+Configure via config.yaml (optional) — without it, runs all models on all datasets.
+Resume is automatic: existing results in the output xlsx are skipped.
+Exports:
+  - Results as xlsx (metrics per model×dataset, one sheet)
+  - Confusion matrices as JSON (one file per model×dataset cell)
 
 Usage:
-    python run_all.py                                # smoke on ecoli1
-    python run_all.py --full                         # full benchmark (slow)
-    python run_all.py --datasets ecoli,glass         # restrict KEEL names
-    python run_all.py --models SPE,soup              # restrict models
-    python run_all.py --bearing-names CWRU --irs 5,20
+    python run_all.py                         # smoke mode with config.yaml
+    python run_all.py --config my_conf.yaml   # use a different config
+    python run_all.py --full                  # full benchmark (overrides config)
+    python run_all.py --models soup,spe       # restrict models (overrides config)
+    python run_all.py --resume               # resume from last interruption
+    python run_all.py --list-models           # print discovered models and exit
 """
 import os
 import sys
 import time
 import argparse
 import importlib
-import numpy as np
+import traceback
 import pandas as pd
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")   # torch libiomp5md guard
@@ -45,80 +29,229 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 
 from common import paths
-from common.dataio import discover_all_datasets, load_folds, DatasetDescriptor
+from common.dataio import discover_all_datasets, load_folds
 from common.base import run_model_on_dataset
-from common.metrics import METRIC_KEYS
-
-# ----- model registry: key -> dotted module path (canonical order) ------------
-MODEL_REGISTRY = {
-    # migrated old-5 (filed by algorithm: ensemble={SPE,DBCF,DEAHS}, resampling={DeepSMOTE,DDPM})
-    "SPE": "Model.ensemble.spe", "DeepSMOTE": "Model.resampling.deepsmote",
-    # "DDPM": "Model.resampling.ddpm",   # DDPM commented out -- excluded from all runs
-    "DBCF": "Model.ensemble.dbcf", "DEAHS": "Model.ensemble.deahs",
-    # 14 data-resampling
-    "s_smote": "Model.resampling.s_smote", "scut": "Model.resampling.scut",
-    "mdo": "Model.resampling.mdo", "smom": "Model.resampling.smom",
-    "soup": "Model.resampling.soup", "mc_rbo": "Model.resampling.mc_rbo",
-    "mc_ccr": "Model.resampling.mc_ccr", "ocsv_us": "Model.resampling.ocsv_us",
-    "shsampler": "Model.resampling.shsampler", "mc_evhs": "Model.resampling.mc_evhs",
-    "nromm": "Model.resampling.nromm", "orem_m": "Model.resampling.orem_m",
-    "glos": "Model.resampling.glos", "mc_nro": "Model.resampling.mc_nro",
-    # 11 ensemble
-    "easy_bpnn": "Model.ensemble.easy_bpnn", "amcs": "Model.ensemble.amcs",
-    "des_mi": "Model.ensemble.des_mi", "drcw_aseg": "Model.ensemble.drcw_aseg",
-    "pt_bagging": "Model.ensemble.pt_bagging", "evinci": "Model.ensemble.evinci",
-    "multirandbal": "Model.ensemble.multirandbal", "dpse": "Model.ensemble.dpse",
-    "oremboost": "Model.ensemble.oremboost", "e_evrs": "Model.ensemble.e_evrs",
-    "adaboost_ad": "Model.ensemble.adaboost_ad",
-}
 
 
-def resolve_models(requested):
-    """Import requested model modules; keep those exposing build(). Returns
-    dict key -> module. A missing/broken module is skipped with a warning."""
-    keys = list(MODEL_REGISTRY) if requested is None else list(requested)
+# =============================================================================
+# YAML config
+# =============================================================================
+
+def _load_yaml(path):
+    """Load a YAML file. Returns {} if the file is missing."""
+    import yaml as _yaml
+    path = os.path.join(PROJECT_ROOT, path)
+    if not os.path.isfile(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return _yaml.safe_load(f) or {}
+
+
+# =============================================================================
+# Model discovery
+# =============================================================================
+
+def discover_models():
+    """Scan Model/*.py, import each module, and return those exposing build().
+
+    Returns:
+        dict: {model_key: module}  where model_key is the module's MODEL_KEY attr.
+    """
+    model_dir = os.path.join(PROJECT_ROOT, "Model")
     avail = {}
-    for key in keys:
-        path = MODEL_REGISTRY.get(key)
-        if path is None:
-            print(f"[run_all] WARNING: unknown model key '{key}' (ignored)")
+    if not os.path.isdir(model_dir):
+        print("[run_all] WARNING: Model/ directory not found")
+        return avail
+
+    for fname in sorted(os.listdir(model_dir)):
+        if not fname.endswith(".py") or fname.startswith("_"):
             continue
+        mod_name = fname[:-3]
         try:
-            mod = importlib.import_module(path)
+            mod = importlib.import_module(f"Model.{mod_name}")
         except Exception as e:
-            print(f"[run_all] skip '{key}' (import failed: {type(e).__name__}: {e})")
+            print(f"[run_all] skip '{mod_name}' (import failed: {type(e).__name__}: {e})")
             continue
         if not hasattr(mod, "build"):
-            print(f"[run_all] skip '{key}' (no build() yet)")
+            print(f"[run_all] skip '{mod_name}' (no build() yet)")
             continue
-        avail[key] = mod
+        model_key = getattr(mod, "MODEL_KEY", mod_name)
+        avail[model_key] = mod
     return avail
 
 
-def _atomic_to_csv(df, path):
+def build_paper_name_map():
+    """Match MODEL_KEY to paper PDF names from Paper/.
+
+    Normalises both sides (lowercase, strip separators) for matching.
+    Returns {model_key: paper_name}.
+    """
+    paper_dir = os.path.join(PROJECT_ROOT, "Paper")
+    paper_names = []
+    if os.path.isdir(paper_dir):
+        for fname in os.listdir(paper_dir):
+            if fname.lower().endswith(".pdf"):
+                paper_names.append(fname[:-4])
+
+    def _norm(s):
+        return s.lower().replace("-", "").replace("_", "")
+
+    norm_to_paper = {_norm(p): p for p in paper_names}
+
+    avail = discover_models()
+    mapping = {}
+    for key in avail:
+        paper = norm_to_paper.get(_norm(key))
+        if paper:
+            mapping[key] = paper
+        else:
+            # fallback: use MODEL_KEY as-is
+            mapping[key] = key
+    return mapping
+
+
+# =============================================================================
+# Config loading
+# =============================================================================
+
+def load_config(config_path="config.yaml", cli_args=None):
+    """Load YAML config and merge with CLI arguments (CLI wins).
+
+    Returns a dict with all settings resolved.
+    """
+    yaml_cfg = _load_yaml(config_path)
+    cli = cli_args or {}
+
+    # --- mode ---
+    mode = yaml_cfg.get("mode", "smoke")
+    if cli.get("full"):
+        mode = "full"
+    smoke = (mode != "full")
+
+    # --- models ---
+    yaml_models = yaml_cfg.get("models") or []
+    config_models = yaml_models if yaml_models else None  # None = all
+    if cli.get("models") is not None:
+        config_models = cli["models"]
+
+    # --- datasets ---
+    yaml_datasets = yaml_cfg.get("datasets") or []
+    config_datasets = yaml_datasets if yaml_datasets else None  # None = all
+    if cli.get("datasets") is not None:
+        config_datasets = cli["datasets"]
+
+    # --- bearing ---
+    bearing_cfg = yaml_cfg.get("bearing") or {}
+    config_bearing_names = bearing_cfg.get("names") or None
+    config_irs = bearing_cfg.get("irs") or (5, 10, 20, 30)
+    if cli.get("bearing_names") is not None:
+        config_bearing_names = cli["bearing_names"]
+    if cli.get("irs") is not None:
+        config_irs = cli["irs"]
+
+    # --- folds ---
+    n_folds = yaml_cfg.get("n_folds") or None
+    if n_folds is None:
+        n_folds = 1 if smoke else 5
+    if cli.get("n_folds") is not None:
+        n_folds = cli["n_folds"]
+
+    # --- output ---
+    output_cfg = yaml_cfg.get("output") or {}
+    save_cm = output_cfg.get("save_cm", True)
+    out_file = output_cfg.get("file") or None
+    if cli.get("out") is not None:
+        out_file = cli["out"]
+
+    # --- seed ---
+    base_seed = yaml_cfg.get("base_seed", 42)
+
+    # --- model params ---
+    model_params = yaml_cfg.get("model_params") or {}
+
+    # --- resume ---
+    resume = cli.get("resume", False)  # default False unless --resume
+
+    return {
+        "smoke": smoke,
+        "mode": mode,
+        "models": config_models,           # None -> all, else list of str
+        "datasets": config_datasets,       # None -> all
+        "bearing_names": config_bearing_names,  # None -> all
+        "irs": tuple(config_irs) if isinstance(config_irs, list) else config_irs,
+        "n_folds": n_folds,
+        "save_cm": save_cm,
+        "out_file": out_file,
+        "base_seed": base_seed,
+        "model_params": model_params,
+        "resume": resume,
+    }
+
+
+# =============================================================================
+# Atomic write helpers
+# =============================================================================
+
+def _atomic_to_xlsx(df, path):
+    """Write DataFrame to xlsx atomically (tmp then replace)."""
+    import openpyxl
+    from openpyxl.utils.dataframe import dataframe_to_rows
     tmp = path + ".tmp"
-    df.to_csv(tmp, index=False)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Results"
+    for r in dataframe_to_rows(df, index=False, header=True):
+        ws.append(r)
+    wb.save(tmp)
     os.replace(tmp, path)
 
 
-def run_all(smoke=True, datasets=None, models=None, irs=(5, 10, 20, 30),
-            bearing_names=None, n_folds=None, save_cm=True, out_path=None,
-            base_seed=42):
-    """Run every (model x dataset) cell; return a combined results DataFrame."""
-    if n_folds is None:
-        n_folds = 1 if smoke else 5
+# =============================================================================
+# Main runner
+# =============================================================================
 
-    avail = resolve_models(models)
+def run_benchmark(config):
+    """Run the benchmark. Returns the results DataFrame."""
+    smoke = config["smoke"]
+    mode = config["mode"]
+    resume = config["resume"]
+    save_cm = config["save_cm"]
+    base_seed = config["base_seed"]
+    n_folds = config["n_folds"]
+    model_params = config["model_params"]
+
+    # --- discover models ---
+    all_avail = discover_models()
+    if not all_avail:
+        raise RuntimeError("no runnable models found in Model/")
+
+    # filter by config
+    if config["models"]:
+        avail = {k: m for k, m in all_avail.items() if k in config["models"]}
+        missing = set(config["models"]) - set(avail)
+        if missing:
+            print(f"[run_all] WARNING: requested models not found: {missing}")
+    else:
+        avail = dict(all_avail)
+
     if not avail:
-        raise RuntimeError("no runnable models found")
+        raise RuntimeError("no models selected (check config models list)")
 
-    # dataset discovery: smoke defaults to a small representative subset covering
-    # binary (ecoli1) + multiclass (glass) KEEL and one multiclass Bearing IR set.
+    # --- paper name mapping ---
+    paper_names = build_paper_name_map()
+
+    # --- set up smoke defaults ---
+    datasets = config["datasets"]
+    bearing_names = config["bearing_names"]
+    irs = config["irs"]
     if smoke and datasets is None and bearing_names is None:
-        datasets = ["ecoli1", "glass"]
-        bearing_names = ["CWRU"]
-        irs = (5,)
+        # smoke mode: one KEEL dataset only, evaluated with all 5 folds.
+        datasets = ["ecoli"]
+        bearing_names = []
+        irs = ()
+        n_folds = 5
 
+    # --- discover datasets ---
     ds_list = discover_all_datasets(
         keel_filter=(set(datasets) if datasets else None),
         bearing_irs=irs,
@@ -126,16 +259,46 @@ def run_all(smoke=True, datasets=None, models=None, irs=(5, 10, 20, 30),
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
 
-    mode = "SMOKE" if smoke else "FULL"
-    print(f"\n{'='*94}\n run_all [{mode}] models={list(avail)} "
-          f"n_datasets={len(ds_list)} n_folds={n_folds}\n{'='*94}")
-
-    if out_path is None:
-        out_path = os.path.join(paths.RESULTS_DIR,
-                                "Smoke_Results.csv" if smoke else "All_Models_Results.csv")
+    # --- resolve output path ---
+    out_file = config["out_file"]
+    if out_file is None:
+        out_file = "Smoke_Results.xlsx" if smoke else "benchmark_results.xlsx"
+    out_path = os.path.join(paths.RESULTS_DIR, out_file)
     paths.ensure_dirs()
 
+    # --- load existing results for resume ---
     rows = []
+    completed = set()
+    if resume and os.path.isfile(out_path):
+        try:
+            existing_df = pd.read_excel(out_path, sheet_name="Results", engine="openpyxl")
+            rows = existing_df.to_dict("records")
+            for row in rows:
+                m = str(row.get("Model", ""))
+                d = str(row.get("Dataset", ""))
+                if m and d:
+                    completed.add((m, d))
+            print(f"[run_all] loaded {len(completed)} existing cells from "
+                  f"{os.path.basename(out_path)}")
+        except Exception as e:
+            print(f"[run_all] could not read existing xlsx ({e}); starting fresh")
+
+    # --- report ---
+    total_cells = len(ds_list) * len(avail)
+    new_cells = total_cells - len(completed)
+    print(f"\n{'=' * 94}\n"
+          f" run_all [{mode.upper()}]  models={len(avail)}  datasets={len(ds_list)}"
+          f"  n_folds={n_folds}\n"
+          f" existing={len(completed)}  new={new_cells}  total={total_cells}\n"
+          f" output={out_path}\n"
+          f"{'=' * 94}")
+
+    # Confusion-matrix JSON dir
+    cm_json_dir = os.path.join(paths.CM_JSON_DIR) if save_cm else None
+    if cm_json_dir:
+        os.makedirs(cm_json_dir, exist_ok=True)
+
+    # --- main loop ---
     for ds in ds_list:
         try:
             folds, classes = load_folds(ds)
@@ -144,75 +307,124 @@ def run_all(smoke=True, datasets=None, models=None, irs=(5, 10, 20, 30),
             continue
         folds_run = folds[:n_folds]
         for key, mod in avail.items():
+            paper_name = paper_names.get(key, key)
+
+            if (paper_name, ds.name) in completed:
+                print(f"\n--- skip {paper_name:12s} | {ds.name} (already in xlsx) ---",
+                      flush=True)
+                continue
+
             t0 = time.time()
-            print(f"\n--- {key:12s} | {ds.name} (C={len(classes)}, "
+            print(f"\n--- {paper_name:12s} | {ds.name} (C={len(classes)}, "
                   f"fold={folds_run[0].X_train.shape[0]}x{folds_run[0].X_test.shape[0]}) ---",
                   flush=True)
+
             try:
-                factory = (lambda m: (lambda seed: m.build(random_state=seed, smoke=smoke)))(mod)
-                res = run_model_on_dataset(factory, ds, folds_run, classes,
-                                           fig_dir=paths.FIGURES_DIR if save_cm else None,
-                                           model_key=key, base_seed=base_seed,
-                                           save_cm=save_cm, verbose=smoke)
-                row = {"Model": key, "Dataset": ds.name,
-                       "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
-                       "Source": ds.source}
+                # Build model factory with optional parameter overrides
+                extra_params = model_params.get(key, {})
+                factory = (lambda m, ep: (lambda seed: m.build(
+                    random_state=seed, smoke=smoke, **ep)))(mod, extra_params)
+                res = run_model_on_dataset(
+                    factory, ds, folds_run, classes,
+                    model_key=paper_name, base_seed=base_seed,
+                    save_cm=save_cm, cm_json_dir=cm_json_dir, verbose=smoke)
+                row = {
+                    "Model": paper_name,
+                    "Dataset": ds.name,
+                    "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
+                    "Source": ds.source,
+                }
                 row.update(res)
-                print(f"    -> done in {time.time()-t0:.1f}s "
-                      f"(Acc={res['Accuracy_mean']:.3f} F1={res['F1_mean']:.3f} "
-                      f"GMean={res['GMean_mean']:.3f})", flush=True)
+                metric_str = ""
+                if "Accuracy_mean" in res:
+                    metric_str = (f"Acc={res['Accuracy_mean']:.3f} "
+                                  f"F1={res['F1_mean']:.3f} "
+                                  f"GMean={res['GMean_mean']:.3f}")
+                print(f"    -> done in {time.time() - t0:.1f}s ({metric_str})",
+                      flush=True)
             except Exception as e:
-                import traceback
                 print(f"    -> ERROR: {type(e).__name__}: {e}", flush=True)
                 traceback.print_exc()
-                row = {"Model": key, "Dataset": ds.name,
-                       "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
-                       "Source": ds.source, "Error": str(e)}
+                row = {
+                    "Model": paper_name,
+                    "Dataset": ds.name,
+                    "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
+                    "Source": ds.source,
+                    "Error": str(e),
+                }
+
             rows.append(row)
-            _atomic_to_csv(pd.DataFrame(rows), out_path)
-            print(f"    [incremental save] {len(rows)} cells -> "
+            completed.add((paper_name, ds.name))
+            _atomic_to_xlsx(pd.DataFrame(rows), out_path)
+            print(f"    [incremental save] {len(completed)}/{total_cells} cells -> "
                   f"{os.path.basename(out_path)}", flush=True)
 
+    # --- final save ---
     df = pd.DataFrame(rows)
-    _atomic_to_csv(df, out_path)
-    print(f"\n{'='*94}\n{len(rows)} cells complete -> {out_path}\n{'='*94}")
+    _atomic_to_xlsx(df, out_path)
+    print(f"\n{'=' * 94}\n{len(rows)} cells total -> {out_path}\n{'=' * 94}")
     return df
 
 
+# =============================================================================
+# CLI
+# =============================================================================
+
 def main():
-    ap = argparse.ArgumentParser(description="Unified 30-model imbalance benchmark runner")
+    ap = argparse.ArgumentParser(
+        description="Unified imbalance benchmark runner (config-driven, auto-resume)")
+    ap.add_argument("--config", default="config.yaml",
+                    help="Path to YAML config file (default: config.yaml)")
     ap.add_argument("--full", action="store_true",
-                    help="Full benchmark (all datasets, 5 folds). Default = smoke.")
+                    help="Full benchmark (overrides config mode)")
     ap.add_argument("--models", default=None,
-                    help="Comma list of model keys (default: all available)")
+                    help="Comma list of MODEL_KEYs (overrides config)")
     ap.add_argument("--datasets", default=None,
-                    help="Comma list of KEEL names to restrict to")
+                    help="Comma list of KEEL dataset names (overrides config)")
     ap.add_argument("--bearing-names", default=None,
-                    help="Comma list of Bearing names (default all 8)")
-    ap.add_argument("--irs", default="5,10,20,30",
-                    help="Comma list of Bearing IRs (default 5,10,20,30)")
+                    help="Comma list of Bearing names (overrides config)")
+    ap.add_argument("--irs", default=None,
+                    help="Comma list of Bearing IRs, e.g. 5,20 (overrides config)")
     ap.add_argument("--n-folds", type=int, default=None,
-                    help="Folds per dataset (default smoke=1, full=5)")
-    ap.add_argument("--no-cm", action="store_true", help="Skip confusion-matrix export")
-    ap.add_argument("--out", default=None, help="Output CSV path")
-    ap.add_argument("--list-models", action="store_true", help="Print registry and exit")
+                    help="Folds per dataset (overrides config)")
+    ap.add_argument("--out", default=None,
+                    help="Output xlsx path (overrides config)")
+    ap.add_argument("--resume", action="store_true",
+                    help="Resume from last run (skip completed cells)")
+    ap.add_argument("--list-models", action="store_true",
+                    help="Print discovered models with paper names and exit")
     args = ap.parse_args()
 
+    # --- list-models is a read-only action ---
     if args.list_models:
-        print("Model registry (key -> module):")
-        for k, v in MODEL_REGISTRY.items():
-            print(f"  {k:12s} -> {v}")
+        avail = discover_models()
+        paper_names = build_paper_name_map()
+        print(f"{'MODEL_KEY':16s} {'Paper name':16s} {'Module'}")
+        print("-" * 52)
+        for key, mod in sorted(avail.items()):
+            pname = paper_names.get(key, key)
+            print(f"  {key:14s}  {pname:14s}  Model.{mod.__name__.split('.')[-1]}.py")
+        print(f"\n{len(avail)} models discovered")
         return
 
-    smoke = not args.full
-    models = [x.strip() for x in args.models.split(",")] if args.models else None
-    datasets = [x.strip() for x in args.datasets.split(",")] if args.datasets else None
-    bearing_names = [x.strip() for x in args.bearing_names.split(",")] if args.bearing_names else None
-    irs = tuple(int(x) for x in args.irs.split(","))
+    # --- build CLI overrides dict ---
+    cli = {
+        "full": args.full,
+        "models": ([x.strip() for x in args.models.split(",")]
+                   if args.models else None),
+        "datasets": ([x.strip() for x in args.datasets.split(",")]
+                     if args.datasets else None),
+        "bearing_names": ([x.strip() for x in args.bearing_names.split(",")]
+                          if args.bearing_names else None),
+        "irs": (tuple(int(x) for x in args.irs.split(","))
+                if args.irs else None),
+        "n_folds": args.n_folds,
+        "out": args.out,
+        "resume": args.resume,
+    }
 
-    run_all(smoke=smoke, datasets=datasets, models=models, irs=irs,
-            bearing_names=bearing_names, n_folds=args.n_folds,
-            save_cm=not args.no_cm, out_path=args.out)
+    config = load_config(args.config, cli)
+    run_benchmark(config)
 
 
 if __name__ == "__main__":

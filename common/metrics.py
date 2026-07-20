@@ -14,6 +14,7 @@ Confusion matrices are pooled (summed) across the 5 folds, row-normalized so
 each true-class row is a recall distribution (fair under imbalance), rendered at
 dpi=600 with Times New Roman and English axis labels.
 """
+import os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")                       # headless; safe on servers / no display
@@ -164,4 +165,45 @@ def save_confusion_matrix(y_true_per_fold, y_pred_per_fold, classes, out_path,
     fig.tight_layout()
     fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
+    return out_path
+
+
+def save_confusion_matrix_json(y_true_per_fold, y_pred_per_fold, classes,
+                               model_name, dataset_name, out_path):
+    """Pool per-fold confusion matrices into one, row-normalize, and save as JSON.
+
+    Args:
+        y_true_per_fold: list of per-fold true label arrays
+        y_pred_per_fold: list of per-fold predicted label arrays
+        classes: sorted unique class labels
+        model_name: paper name of the model
+        dataset_name: dataset identifier
+        out_path: output JSON path
+
+    Returns out_path.
+
+    JSON structure:
+        {"model": "...", "dataset": "...", "classes": [...],
+         "confusion_matrix": [[int,...],...], "normalized": [[float,...],...]}
+    """
+    import json as _json
+    n = len(classes)
+    cm = np.zeros((n, n), dtype=int)
+    for yt, yp in zip(y_true_per_fold, y_pred_per_fold):
+        cm += confusion_matrix(np.asarray(yt).ravel(), np.asarray(yp).ravel(),
+                               labels=list(range(n)))
+    row_sums = cm.sum(axis=1, keepdims=True)
+    cmn = np.divide(cm.astype(float), row_sums, out=np.zeros_like(cm, dtype=float),
+                    where=row_sums > 0)
+
+    data = {
+        "model": str(model_name),
+        "dataset": str(dataset_name),
+        "classes": [str(c) for c in classes],
+        "confusion_matrix": cm.tolist(),
+        "normalized": [[round(float(v), 6) for v in row] for row in cmn.tolist()],
+    }
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as f:
+        _json.dump(data, f, indent=2, ensure_ascii=False)
     return out_path

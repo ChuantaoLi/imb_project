@@ -1,0 +1,28 @@
+{
+  "model": "SHSampler",
+  "dataset": "ecoli1",
+  "classes": [
+    "0",
+    "1"
+  ],
+  "confusion_matrix": [
+    [
+      45,
+      7
+    ],
+    [
+      2,
+      14
+    ]
+  ],
+  "normalized": [
+    [
+      0.865385,
+      0.134615
+    ],
+    [
+      0.125,
+      0.875
+    ]
+  ]
+}

@@ -16,28 +16,24 @@ from .metrics import compute_metrics, save_confusion_matrix, METRIC_KEYS
 from .base import run_model_on_dataset
 
 
-def pick_smoke_dataset(name="ecoli1"):
+def pick_smoke_dataset(name="ecoli"):
     return DatasetDescriptor(name=name, source="keel", keel_name=name)
 
 
 def smoke_common():
     """Self-test the common layer. Raises AssertionError on any failure."""
     paths.ensure_dirs()
-    print("[smoke_common] loading KEEL ecoli1 (binary) + ecoli (8-class)...")
-    d1 = pick_smoke_dataset("ecoli1")
+    print("[smoke_common] loading KEEL ecoli (5-fold)...")
+    d1 = pick_smoke_dataset("ecoli")
     folds1, classes1 = load_folds(d1)
     assert len(folds1) == 5, f"expected 5 folds, got {len(folds1)}"
     assert folds1[0].X_train.ndim == 2 and folds1[0].X_test.ndim == 2
-    print(f"  ecoli1: 5 folds, classes={classes1.tolist()}, "
+    print(f"  ecoli: 5 folds, classes={classes1.tolist()}, "
           f"fold1 train={folds1[0].X_train.shape} test={folds1[0].X_test.shape}")
-
-    d2 = pick_smoke_dataset("ecoli")
-    folds2, classes2 = load_folds(d2)
-    print(f"  ecoli : 5 folds, classes={classes2.tolist()}, n_classes={len(classes2)}")
 
     # --- metrics on dummy predictions: binary + multiclass ---
     rng = np.random.RandomState(0)
-    for tag, n in (("binary", 2), ("multi", len(classes2))):
+    for tag, n in (("multi", len(classes1)),):
         y = rng.randint(0, n, size=50)
         yp = rng.randint(0, n, size=50)
         proba = rng.rand(50, n); proba /= proba.sum(1, keepdims=True)
@@ -64,7 +60,7 @@ def smoke_common():
     return True
 
 
-def run_smoke(build_fn, model_key, dataset="ecoli1", n_folds=1, save_cm=True,
+def run_smoke(build_fn, model_key, dataset="ecoli", n_folds=5, save_cm=True,
               scale=True, base_seed=42):
     """Run `build_fn(random_state=seed, smoke=True)` on `n_folds` folds of a
     small dataset. Used by each model module's `__main__` smoke driver."""

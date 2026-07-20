@@ -14,7 +14,7 @@ evaluate loops that existed in the old per-model harnesses.
 import time
 import numpy as np
 
-from .metrics import compute_metrics, save_confusion_matrix, METRIC_KEYS
+from .metrics import compute_metrics, save_confusion_matrix, save_confusion_matrix_json, METRIC_KEYS
 from .preprocessing import Preprocessor
 
 
@@ -50,17 +50,18 @@ def _align_proba(proba, model, n_classes):
 
 def run_model_on_dataset(model_factory, desc, folds, classes, fig_dir=None,
                          model_key="model", scale=True, base_seed=42,
-                         save_cm=True, verbose=True):
+                         save_cm=True, verbose=True, cm_json_dir=None):
     """Run one model across all folds of one dataset.
 
     Args:
         model_factory: callable(seed=int) -> fresh model with fit/predict_proba.
-        desc:          DatasetDescriptor (used for the figure filename).
+        desc:          DatasetDescriptor (used for output filenames).
         folds:         list[Fold] (typically 5).
         classes:       sorted unique label array (confusion-matrix ticks).
         fig_dir:       directory for the confusion PNG (None disables).
-        model_key:     model name, used in the figure filename + prints.
+        model_key:     model name, used in filenames + prints.
         scale, base_seed, save_cm, verbose: as named.
+        cm_json_dir:   directory for confusion-matrix JSON (None disables).
     Returns:
         flat dict {<metric>_mean, <metric>_std} for METRIC_KEYS + Runtime.
     """
@@ -99,7 +100,12 @@ def run_model_on_dataset(model_factory, desc, folds, classes, fig_dir=None,
         out[f"{k}_mean"] = float(np.mean(vals))
         out[f"{k}_std"] = float(np.std(vals))
 
-    if save_cm and fig_dir:
+    if save_cm and cm_json_dir:
+        import os
+        out_path = os.path.join(cm_json_dir, f"{model_key}__{desc.name}.json")
+        save_confusion_matrix_json(cm_true, cm_pred, classes,
+                                   model_key, desc.name, out_path)
+    elif save_cm and fig_dir:
         import os
         out_path = os.path.join(fig_dir, f"{model_key}__{desc.name}.png")
         save_confusion_matrix(cm_true, cm_pred, classes, out_path,
