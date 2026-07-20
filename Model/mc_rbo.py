@@ -17,6 +17,7 @@ Mechanism:
 import os
 import sys
 import numpy as np
+from sklearn.neighbors import NearestNeighbors
 
 PROJ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if PROJ not in sys.path:
@@ -72,64 +73,49 @@ class MCRBO(Resampler):
         return float(np.sum(np.abs(x - y) ** p_norm) ** (1.0 / p_norm))
 
     @staticmethod
-    def _rbf(distance_value, gamma):
-        gamma = float(gamma)
+    def _rbf_vec(distances, gamma):
+        """Vectorized RBF: exp(-(d/gamma)^2) for an array of distances."""
         if gamma == 0.0:
-            return 0.0
-        return float(np.exp(-((distance_value / gamma) ** 2)))
+            return np.zeros_like(distances)
+        return np.exp(-((distances / gamma) ** 2))
 
     def _mutual_class_potential(self, point, other_points, minority_points):
-        potential = 0.0
-        for other_point in other_points:
-            potential += self._rbf(self._distance(point, other_point), self.gamma)
-        for minority_point in minority_points:
-            potential -= self._rbf(self._distance(point, minority_point), self.gamma)
-        return float(potential)
+        """Vectorized mutual class potential (was O(n·d) Python loop)."""
+        d_other = np.sum(np.abs(other_points - point), axis=1)
+        d_min = np.sum(np.abs(minority_points - point), axis=1)
+        return float(np.sum(self._rbf_vec(d_other, self.gamma))
+                     - np.sum(self._rbf_vec(d_min, self.gamma)))
 
-    def _possible_directions(self, n_dimensions, excluded_direction=None, rng=None):
-        directions = []
-        for dimension in range(n_dimensions):
-            for sign in (-1.0, 1.0):
-                if excluded_direction is None or excluded_direction != (dimension, sign):
-                    directions.append((dimension, sign))
-        if rng is None:
-            rng = np.random.RandomState(self.random_state)
-        rng.shuffle(directions)
-        return directions
-
-    def _local_support(self, point, X, y, minority_class, seed_global_idx=None):
+    def _local_support(self, point, point_idx, X, y, minority_class, nn_all):
+        """Get local minority/other support using pre-fit NearestNeighbors."""
         if not self.approximate_potential or len(X) <= 1:
-            minority_points = X[y == minority_class]
-            other_points = X[y != minority_class]
-            return minority_points, other_points
-
-        distances = np.sum(np.abs(X - point.reshape(1, -1)), axis=1).astype(float)
-        if seed_global_idx is not None and 0 <= seed_global_idx < len(distances):
-            distances[seed_global_idx] = np.inf
-        else:
-            same_point = np.where(np.all(np.isclose(X, point, atol=1e-12), axis=1))[0]
-            if len(same_point) > 0:
-                distances[same_point[0]] = np.inf
+            return X[y == minority_class], X[y != minority_class]
         k = min(self.n_nearest_neighbors + 1, len(X))
-        idx = np.argsort(distances)[:k]
-        closest_points = X[idx]
+        # temporarily set high distance for query point itself
+        dist, idx = nn_all.kneighbors(point.reshape(1, -1), n_neighbors=k)
+        idx = idx[0]
         closest_labels = y[idx]
-        minority_points = closest_points[closest_labels == minority_class]
-        other_points = closest_points[closest_labels != minority_class]
+        minority_points = X[idx][closest_labels == minority_class]
+        other_points = X[idx][closest_labels != minority_class]
         if len(minority_points) == 0:
-            minority_points = X[y == minority_class]
+            minority_points = X[y == minority_class][:1] if np.any(y == minority_class) else point.reshape(1, -1)
         if len(other_points) == 0:
-            other_points = X[y != minority_class]
+            other_mask = y != minority_class
+            other_points = X[other_mask][:1] if np.any(other_mask) else np.zeros((1, X.shape[1]))
         return minority_points, other_points
 
-    def _generate_from_seed(self, point, X, y, minority_class, rng, seed_global_idx=None):
+    def _generate_from_seed(self, point, point_idx, X, y, minority_class, nn_all, rng):
         point = np.asarray(point, dtype=float)
         minority_points, other_points = self._local_support(
-            point, X, y, minority_class, seed_global_idx=seed_global_idx
+            point, point_idx, X, y, minority_class, nn_all
         )
         translation = np.zeros(len(point), dtype=float)
         potential = self._mutual_class_potential(point, other_points, minority_points)
-        directions = self._possible_directions(len(point), rng=rng)
+        # Pre-compute direction pairs for O(d) reuse, shuffled once per seed
+        d = len(point)
+        dirs = [(dim, s) for dim in range(d) for s in (-1.0, 1.0)]
+        rng.shuffle(dirs)
+        directions = dirs.copy()
 
         for _ in range(self.n_steps):
             if len(directions) == 0:
@@ -143,9 +129,9 @@ class MCRBO(Resampler):
             if abs(candidate_potential) < abs(potential):
                 translation = candidate_translation
                 potential = candidate_potential
-                directions = self._possible_directions(
-                    len(point), excluded_direction=(dimension, -sign), rng=rng
-                )
+                directions = [(dim, s) for dim in range(d) for s in (-1.0, 1.0)
+                             if (dim, s) != (dimension, -sign)]
+                rng.shuffle(directions)
         return point + translation
 
     def _binary_rbo(self, X, y, minority_class, n, rng):
@@ -155,6 +141,10 @@ class MCRBO(Resampler):
         minority_points = X[minority_mask]
         if len(minority_points) == 0 or n <= 0:
             return np.empty((0, X.shape[1]), dtype=float)
+
+        # Pre-fit one NearestNeighbors tree for reuse across all seeds
+        k_nn = min(self.n_nearest_neighbors + 2, len(X))
+        nn_all = NearestNeighbors(n_neighbors=k_nn).fit(X) if self.approximate_potential and len(X) > 1 else None
 
         minority_global_idx = np.where(minority_mask)[0]
         counts = np.zeros(len(minority_points), dtype=int)
@@ -170,7 +160,7 @@ class MCRBO(Resampler):
             for _ in range(counts[local_idx]):
                 appended.append(
                     self._generate_from_seed(
-                        point, X, y, minority_class, rng, seed_global_idx=global_idx
+                        point, global_idx, X, y, minority_class, nn_all, rng
                     )
                 )
         if len(appended) == 0:

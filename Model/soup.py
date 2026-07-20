@@ -66,17 +66,20 @@ class SOUP(Resampler):
         n = len(X)
         kk = min(self.k, n - 1)
         if kk <= 0:
-            return np.empty((n, 0), dtype=int), np.empty((n, 0), dtype=y.dtype), 0
+            return np.empty((n, 0), dtype=int), np.empty((n, 0), dtype=y.dtype), 0, None
         nn = NearestNeighbors(n_neighbors=kk + 1).fit(X)
         _, idx = nn.kneighbors(X)
         idx = idx[:, 1:]
-        return idx, y[idx], kk
+        return idx, y[idx], kk, nn
 
-    def _class_similarity_matrix(self, X, y):
+    def _class_similarity_matrix(self, X, y, nb_labels=None, kk=None):
         classes, class_to_index = self._class_maps(y)
         n_classes = len(classes)
         sim = np.eye(n_classes, dtype=float)
-        _, nb_labels, kk = self._neighbor_labels(X, y)
+        if nb_labels is None:
+            _, nb_labels, kk, _ = self._neighbor_labels(X, y)
+        if kk is None:
+            kk = nb_labels.shape[1]
         if kk <= 0 or n_classes <= 1:
             return classes, class_to_index, sim
 
@@ -96,14 +99,17 @@ class SOUP(Resampler):
                 if self.similarity_mode == "identity":
                     val = 0.0
                 else:
-                    # Heuristic SOUP similarity: mutual neighbourhood mixing.
                     val = 0.5 * (raw[i, j] + raw[j, i])
                 sim[i, j] = sim[j, i] = float(np.clip(val, 0.0, 1.0))
         return classes, class_to_index, sim
 
-    def _similarity_safe_level(self, X, y):
-        classes, class_to_index, sim = self._class_similarity_matrix(X, y)
-        _, nb_labels, kk = self._neighbor_labels(X, y)
+    def _similarity_safe_level(self, X, y, cached_nn=None):
+        """Compute safe-level scores. Pass (idx, nb_labels, kk) to reuse a single NN call."""
+        if cached_nn is not None:
+            _, nb_labels, kk = cached_nn
+        else:
+            _, nb_labels, kk, _ = self._neighbor_labels(X, y)
+        classes, class_to_index, sim = self._class_similarity_matrix(X, y, nb_labels=nb_labels, kk=kk)
         if kk <= 0:
             return np.ones(len(y), dtype=float)
         scores = np.zeros(len(y), dtype=float)
@@ -125,13 +131,19 @@ class SOUP(Resampler):
         yw = np.asarray(y).copy()
         target = self._target_size(yw)
 
+        def _compute_nn_cache():
+            """Compute global NN once; reuse until dataset changes."""
+            idx, nb, kk, _ = self._neighbor_labels(Xw, yw)
+            return idx, nb, kk
+
         # Priority undersampling: repeatedly remove the hardest majority samples.
         while True:
             cnt = Counter(yw.tolist())
             oversized = [c for c, n in cnt.items() if n > target]
             if not oversized:
                 break
-            scores = self._similarity_safe_level(Xw, yw)
+            nn_cache = _compute_nn_cache()
+            scores = self._similarity_safe_level(Xw, yw, cached_nn=nn_cache)
             for c in sorted(oversized):
                 idx = np.where(yw == c)[0]
                 n_drop = cnt[c] - target
@@ -154,7 +166,8 @@ class SOUP(Resampler):
             undersized = [c for c, n in cnt.items() if n < target]
             if not undersized:
                 break
-            scores = self._similarity_safe_level(Xw, yw)
+            nn_cache = _compute_nn_cache()
+            scores = self._similarity_safe_level(Xw, yw, cached_nn=nn_cache)
             changed = False
             for c in sorted(undersized):
                 idx = np.where(yw == c)[0]

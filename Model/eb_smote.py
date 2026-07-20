@@ -64,29 +64,33 @@ class EBSMOTE(Resampler):
         mask = (opp >= lo) & (opp < kk)
         return idx[mask]
 
-    def _choose_nearest(self, src, pool, k, rng):
+    @staticmethod
+    def _choose_nearest(src, pool, k, rng, nn_tree=None):
         if len(pool) == 0:
             return None
         kk = min(max(1, k), len(pool))
-        _, idx = NearestNeighbors(n_neighbors=kk).fit(pool).kneighbors(src.reshape(1, -1))
+        if nn_tree is not None:
+            _, idx = nn_tree.kneighbors(src.reshape(1, -1), n_neighbors=kk)
+        else:
+            _, idx = NearestNeighbors(n_neighbors=kk).fit(pool).kneighbors(src.reshape(1, -1))
         return pool[int(rng.choice(idx[0]))]
 
-    def _minority_sample(self, pi, border_min, border_maj, rng):
-        tj = self._choose_nearest(pi, border_maj, self.v_alpha, rng)
+    def _minority_sample(self, pi, border_min, border_maj, rng, nn_maj=None, nn_min=None):
+        tj = self._choose_nearest(pi, border_maj, self.v_alpha, rng, nn_tree=nn_maj)
         if tj is None:
             return pi.copy()
-        pk = self._choose_nearest(tj, border_min, self.w_alpha, rng)
+        pk = self._choose_nearest(tj, border_min, self.w_alpha, rng, nn_tree=nn_min)
         if pk is None:
             pk = pi
         lam = rng.rand()
         inner = lam * pi + (1.0 - lam) * pk
         return (1.0 - self.expand_alpha) * inner + self.expand_alpha * tj
 
-    def _majority_sample(self, ti, border_min, border_maj, rng):
-        pj = self._choose_nearest(ti, border_min, self.v_beta, rng)
+    def _majority_sample(self, ti, border_min, border_maj, rng, nn_min=None, nn_maj=None):
+        pj = self._choose_nearest(ti, border_min, self.v_beta, rng, nn_tree=nn_min)
         if pj is None:
             return ti.copy()
-        tk = self._choose_nearest(pj, border_maj, self.w_beta, rng)
+        tk = self._choose_nearest(pj, border_maj, self.w_beta, rng, nn_tree=nn_maj)
         if tk is None:
             tk = ti
         lam = rng.rand()
@@ -101,14 +105,19 @@ class EBSMOTE(Resampler):
         Xc = X[y == cls]
         Xmaj = X[y == majority_cls]
 
-        if len(border_min) == 0:
-            return np.empty((0, X.shape[1])), np.empty((0, X.shape[1]))
         if len(border_min) == 0 or len(border_maj) == 0:
             return np.empty((0, X.shape[1])), np.empty((0, X.shape[1]))
 
+        # Pre-fit NN trees once for reuse across all point-wise queries
+        k_min = min(max(1, self.w_alpha, self.v_beta), len(border_min))
+        k_maj = min(max(1, self.v_alpha, self.w_beta), len(border_maj))
+        nn_min = NearestNeighbors(n_neighbors=k_min).fit(border_min) if k_min > 0 else None
+        nn_maj = NearestNeighbors(n_neighbors=k_maj).fit(border_maj) if k_maj > 0 else None
+
         gen_maj = np.empty((len(border_maj), X.shape[1]), dtype=float)
         for i, ti in enumerate(border_maj):
-            gen_maj[i] = self._majority_sample(ti, border_min, border_maj, rng)
+            gen_maj[i] = self._majority_sample(ti, border_min, border_maj, rng,
+                                                nn_min=nn_min, nn_maj=nn_maj)
 
         gnum = (self.resampled_ratio * (len(Xmaj) + len(border_maj)) - len(Xc)) / len(border_min)
         gnum = max(0, int(np.ceil(gnum)))
@@ -118,11 +127,11 @@ class EBSMOTE(Resampler):
             if len(border_maj) <= self.v_alpha:
                 chosen_majority = rng.choice(np.arange(len(border_maj)), size=gnum, replace=True)
             else:
-                _, near = NearestNeighbors(n_neighbors=self.v_alpha).fit(border_maj).kneighbors(pi.reshape(1, -1))
+                _, near = nn_maj.kneighbors(pi.reshape(1, -1), n_neighbors=self.v_alpha)
                 chosen_majority = rng.choice(near[0], size=gnum, replace=True)
             for mj in chosen_majority:
                 tj = border_maj[int(mj)]
-                pk = self._choose_nearest(tj, border_min, self.w_alpha, rng)
+                pk = self._choose_nearest(tj, border_min, self.w_alpha, rng, nn_tree=nn_min)
                 if pk is None:
                     pk = pi
                 lam = rng.rand()

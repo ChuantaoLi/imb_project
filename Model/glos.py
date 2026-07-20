@@ -63,52 +63,70 @@ class GLOS(Resampler):
         s = rng.randint(0, len(Xc), n)
         return Xc[s] + rng.normal(0.0, sigma, size=(n, Xc.shape[1]))
 
-    def _did_scores(self, X, y, c):
+    def _did_scores(self, X, y, c, global_idx=None, global_dist=None):
         """Return (instance_did, class_did) for class c.
 
-        DID is approximated as the ratio between the average distance to
-        hetero-class neighbours and the average distance to homo-class
-        neighbours. Smaller DID means the instance is harder to learn because
-        it is relatively closer to other classes and/or more scattered inside
-        its own class.
+        When global NN data is provided, derives same/other distances from mixed
+        neighbourhood instead of fitting three separate trees.
         """
         Xc = X[y == c]
-        Xo = X[y != c]
         if len(Xc) == 0:
             return np.empty(0, dtype=float), 0.0
         if len(Xc) == 1:
             return np.zeros(1, dtype=float), 0.0
 
-        same_k = min(self.k + 1, len(Xc))
-        same_nn = NearestNeighbors(n_neighbors=same_k).fit(Xc)
-        same_dist, _ = same_nn.kneighbors(Xc)
-        same_dist = same_dist[:, 1:]
-        same_mean = same_dist.mean(axis=1) if same_dist.shape[1] > 0 else np.zeros(len(Xc))
-
-        if len(Xo) == 0:
-            other_mean = np.full(len(Xc), same_mean.max() + 1.0, dtype=float)
+        if global_idx is not None and global_dist is not None:
+            # Derive from precomputed global NN to avoid extra NN fit
+            c_mask = y == c
+            idx_c = np.where(c_mask)[0]
+            same_mask = y[global_idx[idx_c]] == c
+            same_mean = np.where(
+                same_mask.any(axis=1),
+                (global_dist[idx_c] * same_mask).sum(axis=1) / np.maximum(same_mask.sum(axis=1), 1),
+                np.zeros(len(Xc)))
+            other_mask = ~same_mask
+            if other_mask.any():
+                other_mean = (global_dist[idx_c] * other_mask).sum(axis=1) / np.maximum(other_mask.sum(axis=1), 1)
+            else:
+                other_mean = np.full(len(Xc), same_mean.max() + 1.0, dtype=float)
         else:
-            other_k = min(self.k, len(Xo))
-            other_nn = NearestNeighbors(n_neighbors=other_k).fit(Xo)
-            other_dist, _ = other_nn.kneighbors(Xc)
-            other_mean = other_dist.mean(axis=1)
+            Xo = X[y != c]
+            same_k = min(self.k + 1, len(Xc))
+            same_nn = NearestNeighbors(n_neighbors=same_k).fit(Xc)
+            same_dist, _ = same_nn.kneighbors(Xc)
+            same_dist = same_dist[:, 1:]
+            same_mean = same_dist.mean(axis=1) if same_dist.shape[1] > 0 else np.zeros(len(Xc))
+
+            if len(Xo) == 0:
+                other_mean = np.full(len(Xc), same_mean.max() + 1.0, dtype=float)
+            else:
+                other_k = min(self.k, len(Xo))
+                other_nn = NearestNeighbors(n_neighbors=other_k).fit(Xo)
+                other_dist, _ = other_nn.kneighbors(Xc)
+                other_mean = other_dist.mean(axis=1)
 
         did = other_mean / np.clip(same_mean, 1e-12, None)
         return did, float(did.mean())
 
-    def _local_groups(self, X, y, c):
+    def _local_groups(self, X, y, c, global_idx=None, global_kk=None):
         """safe / borderline / small-disjunct groups from mixed-neighbourhood
-        composition for class c."""
+        composition for class c.  Accepts precomputed global NN to avoid re-fitting."""
         Xc = X[y == c]
         if len(Xc) == 0:
-            return np.empty(0, dtype=object)
+            return np.empty(0, dtype=object), None, None, None
         n = len(X)
-        kk = min(self.k, n - 1)
+        if global_idx is not None:
+            idx = global_idx[np.where(y == c)[0]]
+            kk = global_kk
+        else:
+            kk = min(self.k, n - 1)
+            if kk <= 0:
+                return np.full(len(Xc), "safe", dtype=object), None, None, None
+            nn = NearestNeighbors(n_neighbors=kk + 1).fit(X)
+            _, idx = nn.kneighbors(Xc)
+            idx = idx[:, 1:]
         if kk <= 0:
-            return np.full(len(Xc), "safe", dtype=object)
-        nn = NearestNeighbors(n_neighbors=kk + 1).fit(X)
-        _, idx = nn.kneighbors(Xc)
-        idx = idx[:, 1:]
+            return np.full(len(Xc), "safe", dtype=object), None, None, None
         same = (y[idx] == c).sum(axis=1)
         groups = np.full(len(Xc), "small", dtype=object)
         groups[same == kk] = "safe"
@@ -192,12 +210,23 @@ class GLOS(Resampler):
         maj, minors, cnt = split_classes(y)
         target = cnt[maj]
         Xl, yl = [X[y == maj]], [y[y == maj]]
+
+        # Precompute global NN once for all classes (used by both _did_scores & _local_groups)
+        n = len(X)
+        kk_global = min(self.k, n - 1)
+        if kk_global > 0:
+            nn_global = NearestNeighbors(n_neighbors=kk_global + 1).fit(X)
+            g_dist, g_idx = nn_global.kneighbors(X)
+            g_dist, g_idx = g_dist[:, 1:], g_idx[:, 1:]  # exclude self
+        else:
+            g_dist = g_idx = None
+
         for c in minors:
             Xc = X[y == c]
             n_gen = target - len(Xc)
             if n_gen > 0 and len(Xc) >= 1:
-                did_i, did_c = self._did_scores(X, y, c)
-                groups = self._local_groups(X, y, c)
+                did_i, did_c = self._did_scores(X, y, c, global_idx=g_idx, global_dist=g_dist)
+                groups = self._local_groups(X, y, c, global_idx=g_idx, global_kk=kk_global)
                 hard = np.where(did_i < did_c)[0]
                 if len(hard) == 0:
                     hard = np.argsort(did_i)[:max(1, min(len(Xc), self.k))]

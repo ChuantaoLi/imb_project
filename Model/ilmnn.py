@@ -65,28 +65,41 @@ class ILMNN:
         return self._transform_with(X, self.L_)
 
     def _target_neighbours(self, X, y):
-        targets = []
-        for i in range(len(y)):
-            same = np.where(y == y[i])[0]
-            same = same[same != i]
-            if len(same) == 0:
-                targets.append(np.empty(0, dtype=int))
+        """Use NearestNeighbors instead of manual O(n²d) distance loops."""
+        n = len(y)
+        targets = [np.empty(0, dtype=int) for _ in range(n)]
+        for c in np.unique(y):
+            idx = np.where(y == c)[0]
+            Xc = X[idx]
+            if len(Xc) <= 1:
                 continue
-            dsq = np.sum((X[same] - X[i]) ** 2, axis=1)
-            targets.append(same[np.argsort(dsq)[: self.k]])
+            kk = min(self.k, len(Xc) - 1)
+            nn = NearestNeighbors(n_neighbors=kk + 1).fit(Xc)
+            _, nn_idx = nn.kneighbors(Xc)
+            nn_idx = nn_idx[:, 1:]  # exclude self
+            for j, i in enumerate(idx):
+                targets[i] = idx[nn_idx[j]]
         return targets
 
     def _same_distribution(self, X, y):
+        """Use NearestNeighbors to avoid O(n²d) manual distance computation."""
         n = len(y)
         P = np.zeros((n, n), dtype=float)
-        for i in range(n):
-            same = np.where(y == y[i])[0]
-            same = same[same != i]
-            if len(same) == 0:
+        for c in np.unique(y):
+            idx = np.where(y == c)[0]
+            Xc = X[idx]
+            if len(Xc) <= 1:
                 continue
-            dsq = np.sum((X[same] - X[i]) ** 2, axis=1)
-            e = np.exp(-dsq - np.max(-dsq))
-            P[i, same] = e / (np.sum(e) + 1e-12)
+            kk = min(len(Xc) - 1, max(10, self.k * 3))
+            nn = NearestNeighbors(n_neighbors=kk + 1).fit(Xc)
+            dist, nn_idx = nn.kneighbors(Xc)
+            dist = dist[:, 1:] ** 2  # squared distances, exclude self
+            nn_idx = nn_idx[:, 1:]
+            for j, i in enumerate(idx):
+                same_global = idx[nn_idx[j]]
+                # Numerically stable softmax over negative squared distances
+                e = np.exp(-dist[j] - np.max(-dist[j]))
+                P[i, same_global] = e / (np.sum(e) + 1e-12)
         return P
 
     def _sample_weights(self, Xp, y):

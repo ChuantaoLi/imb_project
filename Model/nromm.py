@@ -32,19 +32,6 @@ MODEL_KEY = "nromm"
 INLAND, BORDERLINE, TRAPPED = 0, 1, 2
 
 
-def _pairwise_distances(X):
-    """Squared-expansion pairwise Euclidean distances (only (n,n) intermediates).
-
-    Uses ||a - b||^2 = ||a||^2 + ||b||^2 - 2 a·b^T to avoid the (n, n, d)
-    broadcast that otherwise allocates 62+ GiB for mid-sized datasets.
-    """
-    X = np.asarray(X, dtype=float)
-    sq = np.sum(X ** 2, axis=1)                     # (n,)
-    dist_sq = sq[:, None] + sq[None, :] - 2 * np.dot(X, X.T)
-    dist_sq = np.maximum(dist_sq, 0.0)               # clip float round-off
-    return np.sqrt(dist_sq)
-
-
 class NROMM(Resampler):
     def __init__(
         self,
@@ -64,28 +51,56 @@ class NROMM(Resampler):
         self.max_ratio = int(max_ratio)
 
     def _density_peak_clusters(self, Xc):
+        """Density-peak clustering via k-NN approximation (O(n log n) instead of O(n²)).
+
+        Original CFSFDP computes full pairwise distances. Here we approximate:
+          rho_i  = sum_{j in k-NN(i)} exp(-(d_ij / dc)^2)   (local density)
+          delta_i = distance to nearest higher-density point, searched in k-NN first
+        dc is taken as the median k-th-nearest-neighbour distance.
+        """
         Xc = np.asarray(Xc, dtype=float)
         n = len(Xc)
         if n <= 2:
             return np.zeros(n, dtype=int), np.ones(n, dtype=float), np.ones(n, dtype=float)
-        dist = _pairwise_distances(Xc)
-        tri = dist[np.triu_indices(n, 1)]
-        tri = tri[tri > 0]
-        dc = np.percentile(tri, self.density_percentile) if len(tri) else 1.0
-        dc = max(float(dc), 1e-12)
-        rho = np.exp(-((dist / dc) ** 2)).sum(axis=1) - 1.0
+
+        k = min(max(15, int(np.sqrt(n))), n - 1)
+        nn = NearestNeighbors(n_neighbors=k + 1).fit(Xc)
+        dist_knn, idx_knn = nn.kneighbors(Xc)
+        dist_knn = dist_knn[:, 1:]   # (n, k) exclude self
+        idx_knn = idx_knn[:, 1:]
+
+        dc = float(np.median(dist_knn[:, -1]))
+        dc = max(dc, 1e-12)
+
+        # Local density rho: only nearby points contribute meaningfully
+        rho = np.sum(np.exp(-(dist_knn / dc) ** 2), axis=1)
+
+        # delta: distance to nearest higher-density point
         order = np.argsort(-rho)
         delta = np.zeros(n, dtype=float)
         parent = np.full(n, -1, dtype=int)
-        delta[order[0]] = float(np.max(dist[order[0]])) if len(dist) else 1.0
-        for rank in range(1, n):
-            idx = order[rank]
-            higher = order[:rank]
-            d = dist[idx, higher]
-            best = int(np.argmin(d))
-            delta[idx] = float(d[best])
-            parent[idx] = int(higher[best])
+        delta[order[0]] = float(np.max(dist_knn[order[0]]))
 
+        for rank in range(1, n):
+            i = order[rank]
+            higher_set = set(order[:rank].tolist())
+            # First try k-NN — nearest higher-density point is almost always nearby
+            nn_candidates = [int(h) for h in idx_knn[i] if int(h) in higher_set]
+            if nn_candidates:
+                cand = np.array(nn_candidates)
+                d_h = np.linalg.norm(Xc[cand] - Xc[i], axis=1)
+                best_j = int(np.argmin(d_h))
+                delta[i] = float(d_h[best_j])
+                parent[i] = int(cand[best_j])
+            else:
+                # Rare fallback: search all higher-density points
+                higher = order[:rank]
+                d_all = np.linalg.norm(Xc[higher] - Xc[i], axis=1)
+                best_j = int(np.argmin(d_all))
+                delta[i] = float(d_all[best_j])
+                parent[i] = int(higher[best_j])
+
+        # Cluster-centre selection and label propagation (unchanged)
         gamma = rho * delta
         n_centers = max(1, int(np.ceil(np.sqrt(n / 2.0))))
         center_idx = np.argsort(-gamma)[:n_centers]

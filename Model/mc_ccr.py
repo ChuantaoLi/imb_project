@@ -23,7 +23,7 @@ Mechanism (handles label noise):
 import os
 import sys
 import numpy as np
-from scipy.spatial import distance_matrix
+from sklearn.neighbors import NearestNeighbors
 
 PROJ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if PROJ not in sys.path:
@@ -74,7 +74,13 @@ class MCCR(Resampler):
         if n <= 0:
             return X.copy(), y.copy()
 
-        distances = distance_matrix(minority_points, majority_points, self.p_norm)
+        # Use k-NN instead of full distance matrix (O(n_min·n_maj) → O(n_maj log n_maj))
+        k_nn = min(500, len(majority_points))
+        nn = NearestNeighbors(n_neighbors=k_nn, metric='minkowski', p=self.p_norm)
+        nn.fit(majority_points)
+        nn_dist, nn_idx = nn.kneighbors(minority_points)
+        # nn_dist: (n_min, k_nn) sorted distances; nn_idx: corresponding majority indices
+
         radii = np.zeros(len(minority_points), dtype=float)
         translations = np.zeros_like(majority_points, dtype=float)
         kept = np.ones(len(majority_points), dtype=bool)
@@ -82,19 +88,18 @@ class MCCR(Resampler):
         for i, minority_point in enumerate(minority_points):
             remaining_energy = self.energy
             radius = 0.0
-            order = np.argsort(distances[i])
             n_inside = 0
             while True:
-                if n_inside == len(majority_points):
+                if n_inside == k_nn:
                     denom = (n_inside + 1) if n_inside == 0 else n_inside
                     radius += remaining_energy / denom
                     break
                 radius_change = remaining_energy / (n_inside + 1)
-                d_next = distances[i, order[n_inside]]
+                d_next = nn_dist[i, n_inside]
                 if d_next >= radius + radius_change:
                     radius += radius_change
                     break
-                last_distance = 0.0 if n_inside == 0 else distances[i, order[n_inside - 1]]
+                last_distance = 0.0 if n_inside == 0 else nn_dist[i, n_inside - 1]
                 radius_change = d_next - last_distance
                 radius += radius_change
                 remaining_energy -= radius_change * (n_inside + 1)
@@ -102,9 +107,9 @@ class MCCR(Resampler):
             radii[i] = radius
 
             for j in range(n_inside):
-                idx = order[j]
+                idx = nn_idx[i, j]
                 majority_point = majority_points[idx].copy()
-                d = distances[i, idx]
+                d = nn_dist[i, j]
                 while d < 1e-20:
                     jitter = 1e-6 * rng.rand(len(majority_point)) + 1e-6
                     majority_point = majority_point + jitter * rng.choice([-1.0, 1.0], len(majority_point))

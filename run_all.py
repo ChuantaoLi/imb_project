@@ -274,7 +274,13 @@ def run_benchmark(config):
     heart_names   = config["heart_names"]
 
     # --- smoke mode: if nothing is configured, provide a sensible default ---
-    if smoke and datasets is None and bearing_names is None and nids_names is None and heart_names is None:
+    all_empty = (
+        (datasets is None or len(datasets) == 0) and
+        (bearing_names is None or len(bearing_names) == 0) and
+        (nids_names is None or len(nids_names) == 0) and
+        (heart_names is None or len(heart_names) == 0)
+    )
+    if smoke and all_empty:
         datasets = ["ecoli"]
         bearing_names = []
         irs = ()
