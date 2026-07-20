@@ -31,11 +31,12 @@ N_FOLDS = 5
 
 @dataclass(frozen=True)
 class DatasetDescriptor:
-    name: str                                  # display name: ecoli1 | IR20_CWRU
-    source: str                                # 'keel' | 'bearing'
+    name: str                                  # display name: ecoli1 | IR20_CWRU | NSL-KDD | 10Ydata
+    source: str                                # 'keel' | 'bearing' | 'nids' | 'heart'
     keel_name: Optional[str] = None            # e.g. 'ecoli1'
     bearing_name: Optional[str] = None         # e.g. 'CWRU'
     ir: Optional[int] = None                   # e.g. 20
+    dataset_name: Optional[str] = None         # csv stem for nids/heart, e.g. 'NSL-KDD'
 
 
 @dataclass
@@ -66,6 +67,14 @@ def _read_bearing_csv(path):
     return X, y
 
 
+def _read_generic_csv(path):
+    """Generic CSV: all columns except the last are features; last column = label."""
+    df = pd.read_csv(path)
+    X = df.iloc[:, :-1].values.astype(float)
+    y = df.iloc[:, -1].values
+    return X, y
+
+
 def load_folds(desc, random_state=42):
     """Return (list of N_FOLDS Fold objects, sorted-unique classes array)."""
     if desc.source == "keel":
@@ -82,6 +91,17 @@ def load_folds(desc, random_state=42):
     if desc.source == "bearing":
         path = os.path.join(paths.BEARING_IR, f"IR{desc.ir}", f"{desc.bearing_name}.csv")
         X, y = _read_bearing_csv(path)
+        skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=random_state)
+        folds = []
+        for i, (tr, te) in enumerate(skf.split(X, y), start=1):
+            folds.append(Fold(X[tr], y[tr], X[te], y[te], i))
+        classes = np.array(sorted(set(y.tolist())))
+        return folds, classes
+
+    if desc.source in ("nids", "heart"):
+        root = paths.NIDS_RAW if desc.source == "nids" else paths.HEART_RAW
+        path = os.path.join(root, f"{desc.dataset_name}.csv")
+        X, y = _read_generic_csv(path)
         skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=random_state)
         folds = []
         for i, (tr, te) in enumerate(skf.split(X, y), start=1):
@@ -162,8 +182,9 @@ def build_bearing_ir_datasets(irs=DEFAULT_IRS, random_state=42, out_root=None,
 # --------------------------------------------------------------------- discovery
 
 def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
-                          bearing_names=None, keel_root=None, bearing_ir_root=None):
-    """Walk KEEL_5FOLD/* (115) + Bearing_IR/IR<ir>/* (32) -> 147 descriptors."""
+                          bearing_names=None, nids_names=None, heart_names=None,
+                          keel_root=None, bearing_ir_root=None):
+    """Walk KEEL_5FOLD/* + Bearing_IR/IR<ir>/* + NIDS/* + Heart/* → descriptors."""
     keel_root = keel_root or paths.KEEL_5FOLD
     bearing_ir_root = bearing_ir_root or paths.BEARING_IR
     out = []
@@ -177,7 +198,7 @@ def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
                 continue
             out.append(DatasetDescriptor(name=name, source="keel", keel_name=name))
 
-    names = set(bearing_names) if bearing_names else None
+    names = set(bearing_names) if bearing_names is not None else None
     for ir in bearing_irs:
         d = os.path.join(bearing_ir_root, f"IR{ir}")
         if not os.path.isdir(d):
@@ -186,9 +207,34 @@ def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
             if not f.endswith(".csv"):
                 continue
             bname = f.replace(".csv", "")
-            if names and bname not in names:
+            if names is not None and bname not in names:
                 continue
             out.append(DatasetDescriptor(
                 name=f"IR{ir}_{bname}", source="bearing",
                 bearing_name=bname, ir=int(ir)))
+
+    # NIDS: raw CSVs, label last column, no IR construction
+    nids_filter = set(nids_names) if nids_names is not None else None
+    if os.path.isdir(paths.NIDS_RAW):
+        for f in sorted(os.listdir(paths.NIDS_RAW)):
+            if not f.endswith(".csv"):
+                continue
+            dname = f.replace(".csv", "")
+            if nids_filter is not None and dname not in nids_filter:
+                continue
+            out.append(DatasetDescriptor(
+                name=dname, source="nids", dataset_name=dname))
+
+    # Heart: raw CSVs, label last column, no IR construction
+    heart_filter = set(heart_names) if heart_names is not None else None
+    if os.path.isdir(paths.HEART_RAW):
+        for f in sorted(os.listdir(paths.HEART_RAW)):
+            if not f.endswith(".csv"):
+                continue
+            dname = f.replace(".csv", "")
+            if heart_filter is not None and dname not in heart_filter:
+                continue
+            out.append(DatasetDescriptor(
+                name=dname, source="heart", dataset_name=dname))
+
     return out

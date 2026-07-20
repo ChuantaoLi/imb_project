@@ -43,6 +43,22 @@ bearing:
   irs: [5, 10, 20, 30]
 
 # ---------------------------------------------------------------------------
+# NIDS datasets (Dataset/NIDS/*.csv)
+# ---------------------------------------------------------------------------
+nids:
+  # Dataset names: NSL-KDD, UNSW-NB15
+  # Leave empty for all.
+  names: []
+
+# ---------------------------------------------------------------------------
+# Heart datasets (Dataset/Heart/*.csv)
+# ---------------------------------------------------------------------------
+heart:
+  # Dataset names: 10Ydata, 7Ydata, Framingham, SPECTF
+  # Leave empty for all.
+  names: []
+
+# ---------------------------------------------------------------------------
 # Run mode
 #   smoke : 1 fold, smoke=True model configs — fast sanity check
 #   full  : all folds with paper-faithful model configs

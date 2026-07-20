@@ -149,6 +149,18 @@ def load_config(config_path="config.yaml", cli_args=None):
     if cli.get("irs") is not None:
         config_irs = cli["irs"]
 
+    # --- nids ---
+    nids_cfg = yaml_cfg.get("nids") or {}
+    config_nids_names = nids_cfg.get("names") or None
+    if cli.get("nids_names") is not None:
+        config_nids_names = cli["nids_names"]
+
+    # --- heart ---
+    heart_cfg = yaml_cfg.get("heart") or {}
+    config_heart_names = heart_cfg.get("names") or None
+    if cli.get("heart_names") is not None:
+        config_heart_names = cli["heart_names"]
+
     # --- folds ---
     n_folds = yaml_cfg.get("n_folds") or None
     if n_folds is None:
@@ -179,6 +191,8 @@ def load_config(config_path="config.yaml", cli_args=None):
         "datasets": config_datasets,       # None -> all
         "bearing_names": config_bearing_names,  # None -> all
         "irs": tuple(config_irs) if isinstance(config_irs, list) else config_irs,
+        "nids_names": config_nids_names,   # None -> all
+        "heart_names": config_heart_names, # None -> all
         "n_folds": n_folds,
         "save_cm": save_cm,
         "out_file": out_file,
@@ -219,6 +233,8 @@ def run_benchmark(config):
     base_seed = config["base_seed"]
     n_folds = config["n_folds"]
     model_params = config["model_params"]
+    nids_names = config["nids_names"]
+    heart_names = config["heart_names"]
 
     # --- discover models ---
     all_avail = discover_models()
@@ -249,13 +265,17 @@ def run_benchmark(config):
         datasets = ["ecoli"]
         bearing_names = []
         irs = ()
+        nids_names = []
+        heart_names = []
         n_folds = 5
 
     # --- discover datasets ---
     ds_list = discover_all_datasets(
         keel_filter=(set(datasets) if datasets else None),
         bearing_irs=irs,
-        bearing_names=(set(bearing_names) if bearing_names else None))
+        bearing_names=(set(bearing_names) if bearing_names is not None else None),
+        nids_names=(set(nids_names) if nids_names is not None else None),
+        heart_names=(set(heart_names) if heart_names is not None else None))
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
 
@@ -385,6 +405,10 @@ def main():
                     help="Comma list of Bearing names (overrides config)")
     ap.add_argument("--irs", default=None,
                     help="Comma list of Bearing IRs, e.g. 5,20 (overrides config)")
+    ap.add_argument("--nids-names", default=None,
+                    help="Comma list of NIDS dataset names (overrides config)")
+    ap.add_argument("--heart-names", default=None,
+                    help="Comma list of Heart dataset names (overrides config)")
     ap.add_argument("--n-folds", type=int, default=None,
                     help="Folds per dataset (overrides config)")
     ap.add_argument("--out", default=None,
@@ -418,6 +442,10 @@ def main():
                           if args.bearing_names else None),
         "irs": (tuple(int(x) for x in args.irs.split(","))
                 if args.irs else None),
+        "nids_names": ([x.strip() for x in args.nids_names.split(",")]
+                       if args.nids_names else None),
+        "heart_names": ([x.strip() for x in args.heart_names.split(",")]
+                        if args.heart_names else None),
         "n_folds": args.n_folds,
         "out": args.out,
         "resume": args.resume,
