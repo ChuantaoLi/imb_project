@@ -87,7 +87,6 @@ Paper-faithful parameter choices used here:
 
 import os
 import argparse
-import warnings
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -97,12 +96,11 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
 
-# Use sklearn.utils.parallel (NOT joblib directly) so the current thread's
-# scikit-learn configuration is propagated to the loky worker processes —
-# joblib's own Parallel/delayed would drop that config on dispatch.
-from sklearn.utils.parallel import Parallel, delayed
-
-warnings.filterwarnings("ignore")
+# Use joblib's native Parallel + delayed (NOT sklearn's wrappers).
+# _fit_balanced_tree only uses numpy/scipy — it does not need sklearn's
+# thread-local config propagation, so joblib is the right choice and avoids
+# the sklearn "delayed should be used with Parallel" advisory entirely.
+from joblib import Parallel, delayed
 
 
 # ---------------------------------------------------------------------------

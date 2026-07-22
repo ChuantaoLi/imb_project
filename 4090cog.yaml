@@ -18,22 +18,21 @@
 # Models（MODEL_KEY 值，如 "soup", "DBCF", "mc_ccr"）
 # [] 或不写 = 自动发现 Model/ 下所有模型
 # ---------------------------------------------------------------------------
-# models: []
-# models:
-#   - DBCF
-#   - DEAHS
-#   - EB-SMOTE
-#   - FRAME
-#   - glos
-#   - ILMNN
-#   - imDEF
-#   - mc_ccr
-#   - mdo
-#   - nromm
-#   - orem_m
-#   - shsampler
-#   - soup
-#   - SPE
+models:
+  - DBCF
+  - DEAHS
+  - EB-SMOTE
+  - FRAME
+  - glos
+  - ILMNN
+  - imDEF
+  - mc_ccr
+  - mdo
+  - nromm
+  - orem_m
+  - shsampler
+  - soup
+  - SPE
 
 # ---------------------------------------------------------------------------
 # KEEL datasets（Dataset/KEEL/5fold/ 下的文件夹名）
@@ -51,17 +50,14 @@ datasets: []    # 排除 KEEL
 # irs:   不平衡率 (5, 10, 20, 30)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-# bearing:
-#   names: []      # [] = 不运行任何 Bearing 数据集
-#   irs: []        # [] = 不运行任何 IR
+bearing:
+  names: []      # [] = 不运行任何 Bearing 数据集
+  irs: []        # [] = 不运行任何 IR
 # bearing:
 #   names:
-#     - Gearbox
+#     - CWRU
 #     - JNU
-#     - Ottawa
-#     - XJTU
 #   irs:
-#     - 5
 #     - 10
 #     - 20
 
