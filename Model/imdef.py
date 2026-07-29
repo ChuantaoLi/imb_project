@@ -42,6 +42,7 @@ class ImDEF:
         alpha2=0.7,
         beta=25,
         max_depth=None,
+        max_neighbors=50,
         random_state=42,
         **kw
     ):
@@ -52,6 +53,7 @@ class ImDEF:
         self.alpha2 = float(alpha2)
         self.beta = int(beta)
         self.max_depth = max_depth
+        self.max_neighbors = int(max_neighbors)
         self.random_state = random_state
         self.classes_ = None
         self.n_classes_ = None
@@ -116,12 +118,14 @@ class ImDEF:
                 candidate_directions[cls] = [np.asarray([0], dtype=int) for _ in range(np_)]
                 continue
 
-            same_k = max(1, np_ - 1)
-            same_dist, same_idx = NearestNeighbors(n_neighbors=same_k + 1).fit(data_p).kneighbors(data_p)
+            same_k = max(1, min(np_ - 1, self.max_neighbors))
+            same_nn = same_k + 1  # +1 for self, removed via [:, 1:] below
+            same_dist, same_idx = NearestNeighbors(n_neighbors=same_nn).fit(data_p).kneighbors(data_p)
             same_dist = same_dist[:, 1:]
             same_idx = same_idx[:, 1:]
             if nn_:
-                other_dist, other_idx = NearestNeighbors(n_neighbors=nn_).fit(data_n).kneighbors(data_p)
+                other_k = min(nn_, self.max_neighbors)
+                other_dist, other_idx = NearestNeighbors(n_neighbors=other_k).fit(data_n).kneighbors(data_p)
             else:
                 other_dist = np.empty((np_, 0))
                 other_idx = np.empty((np_, 0), dtype=int)

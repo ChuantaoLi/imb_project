@@ -19,29 +19,29 @@
 # [] 或不写 = 自动发现 Model/ 下所有模型
 # ---------------------------------------------------------------------------
 # models: []
-models:
+# models:
 #   - DBCF
 #   - DEAHS
 #   - EB-SMOTE
 #   - FRAME
 #   - glos
 #   - ILMNN
-  - imDEF
+  # - imDEF
   # - mc_ccr
   # - mdo
   # - nromm
-  - orem_m
-  - QC-SMOTE
-  - shsampler
-  - smom
-  - soup
-  - SPE
+  # - orem_m
+  # - QC-SMOTE
+  # - shsampler
+  # - smom
+  # - soup
+  # - SPE
 
 # ---------------------------------------------------------------------------
 # KEEL datasets（Dataset/KEEL/5fold/ 下的文件夹名）
 # [] = 排除全部 KEEL；不写 = 自动发现全部
 # ---------------------------------------------------------------------------
-datasets: []    # 排除 KEEL
+# datasets: []    # 排除 KEEL
 # datasets:
 #   - ecoli1
 #   - glass0
@@ -56,26 +56,27 @@ datasets: []    # 排除 KEEL
 # bearing:
 #   names: []      # [] = 不运行任何 Bearing 数据集
 #   irs: []        # [] = 不运行任何 IR
-bearing:
-  names:
+# bearing:
+#   names:
     # - CWRU
     # - Gearbox
     # - HUST
     # - JNU
     # - MFPT
-    - Ottawa
+    # - Ottawa
     # - SEU
     # - XJTU
-  irs:
-    - 30
+  # irs:
+  #   - 30
+  #   - 10
 
 # ---------------------------------------------------------------------------
 # Software Defect datasets（Dataset/Software/*.csv）
 # names: 数据集名 (AR, CM, KC, MC)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-software_defect:
-  names: []      # [] = 不运行任何 Software Defect 数据集
+# software_defect:
+#   names: []      # [] = 不运行任何 Software Defect 数据集
 # software_defect:
 #   names:
 #     - AR
@@ -86,8 +87,8 @@ software_defect:
 # names: 数据集名 (10Ydata, 7Ydata, Framingham, SPECTF)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-heart:
-  names: []      # [] = 不运行任何 Heart 数据集
+# heart:
+#   names: []      # [] = 不运行任何 Heart 数据集
 # heart:
 #   names:
 #     - 10Ydata
