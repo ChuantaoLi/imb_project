@@ -10,7 +10,34 @@ Public surface:
     base.run_model_on_dataset          the ONE fit/predict loop all models use
     smoke.run_smoke                    per-model smoke-test driver
     dempster                           Dempster-Shafer evidence combination
+    IS_WINDOWS                         True on Windows, False otherwise
 """
+
+import platform as _platform
+
+IS_WINDOWS = _platform.system() == "Windows"
+
+# ---------------------------------------------------------------------------
+# On Windows, force joblib to prefer the threading backend over loky
+# (multiprocessing).  The loky backend uses `spawn` on Windows (no fork()),
+# and repeated pool creation/destruction across model×dataset cells causes
+# worker crashes whose exceptions are not reliably propagated to the main
+# process — the parent exits silently.  Sklearn's RandomForestClassifier and
+# numpy-heavy custom trees both release the GIL during C-level work, so the
+# threading backend is just as fast here and avoids process-spawn issues
+# entirely.
+#
+# Must run BEFORE any sklearn/joblib import, because sklearn's internal
+# joblib.Parallel reads the default backend at call time (not import time).
+# "common" is the first project module imported by every entry-point, so this
+# is the earliest reliable hook.
+# ---------------------------------------------------------------------------
+if IS_WINDOWS:
+    try:
+        import joblib.parallel as _jlp
+        _jlp.DEFAULT_BACKEND = "threading"
+    except Exception:
+        pass  # joblib not installed yet — no-op; stays safe
 
 # ---------------------------------------------------------------------------
 # Silence scikit-learn's advisory parallel-config UserWarnings, project-wide.
@@ -44,5 +71,12 @@ _warnings.filterwarnings(
     "ignore",
     message=r"`sklearn\.utils\.parallel\.Parallel` needs to be used in"
             r" conjunction with `sklearn\.utils\.parallel\.delayed`.*",
+    category=UserWarning,
+)
+# joblib loky resource_tracker: stale temp memmap files were cleaned up externally
+# (common on Windows). Harmless — the tracker just can't delete what's already gone.
+_warnings.filterwarnings(
+    "ignore",
+    message=r"resource_tracker:",
     category=UserWarning,
 )

@@ -32,11 +32,11 @@ N_FOLDS = 5
 @dataclass(frozen=True)
 class DatasetDescriptor:
     name: str                                  # display name: ecoli1 | IR20_CWRU | NSL-KDD | 10Ydata
-    source: str                                # 'keel' | 'bearing' | 'nids' | 'heart'
+    source: str                                # 'keel' | 'bearing' | 'software_defect' | 'heart'
     keel_name: Optional[str] = None            # e.g. 'ecoli1'
     bearing_name: Optional[str] = None         # e.g. 'CWRU'
     ir: Optional[int] = None                   # e.g. 20
-    dataset_name: Optional[str] = None         # csv stem for nids/heart, e.g. 'NSL-KDD'
+    dataset_name: Optional[str] = None         # csv stem for software_defect/heart, e.g. 'AR', 'Framingham'
 
 
 @dataclass
@@ -98,8 +98,8 @@ def load_folds(desc, random_state=42):
         classes = np.array(sorted(set(y.tolist())))
         return folds, classes
 
-    if desc.source in ("nids", "heart"):
-        root = paths.NIDS_RAW if desc.source == "nids" else paths.HEART_RAW
+    if desc.source in ("software_defect", "heart"):
+        root = paths.SOFTWARE if desc.source == "software_defect" else paths.HEART_RAW
         path = os.path.join(root, f"{desc.dataset_name}.csv")
         X, y = _read_generic_csv(path)
         skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=random_state)
@@ -182,9 +182,9 @@ def build_bearing_ir_datasets(irs=DEFAULT_IRS, random_state=42, out_root=None,
 # --------------------------------------------------------------------- discovery
 
 def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
-                          bearing_names=None, nids_names=None, heart_names=None,
+                          bearing_names=None, sdp_names=None, heart_names=None,
                           keel_root=None, bearing_ir_root=None):
-    """Walk KEEL_5FOLD/* + Bearing_IR/IR<ir>/* + NIDS/* + Heart/* → descriptors."""
+    """Walk KEEL_5FOLD/* + Bearing_IR/IR<ir>/* + Software/* + Heart/* → descriptors."""
     keel_root = keel_root or paths.KEEL_5FOLD
     bearing_ir_root = bearing_ir_root or paths.BEARING_IR
     out = []
@@ -213,17 +213,17 @@ def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
                 name=f"IR{ir}_{bname}", source="bearing",
                 bearing_name=bname, ir=int(ir)))
 
-    # NIDS: raw CSVs, label last column, no IR construction
-    nids_filter = set(nids_names) if nids_names is not None else None
-    if os.path.isdir(paths.NIDS_RAW):
-        for f in sorted(os.listdir(paths.NIDS_RAW)):
+    # Software Defect: raw CSVs, label last column, no IR construction
+    sdp_filter = set(sdp_names) if sdp_names is not None else None
+    if os.path.isdir(paths.SOFTWARE):
+        for f in sorted(os.listdir(paths.SOFTWARE)):
             if not f.endswith(".csv"):
                 continue
             dname = f.replace(".csv", "")
-            if nids_filter is not None and dname not in nids_filter:
+            if sdp_filter is not None and dname not in sdp_filter:
                 continue
             out.append(DatasetDescriptor(
-                name=dname, source="nids", dataset_name=dname))
+                name=dname, source="software_defect", dataset_name=dname))
 
     # Heart: raw CSVs, label last column, no IR construction
     heart_filter = set(heart_names) if heart_names is not None else None

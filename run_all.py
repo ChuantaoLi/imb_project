@@ -1,4 +1,5 @@
-"""run_all.py — Unified benchmark runner for multiclass imbalance learning.
+"""
+run_all.py — Unified benchmark runner for multiclass imbalance learning.
 
 Auto-discovers models from Model/ and datasets from Dataset/.
 Configure via config.yaml (optional) — without it, runs all models on all datasets.
@@ -24,6 +25,15 @@ import traceback
 import pandas as pd
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")   # torch libiomp5md guard
+
+# Suppress loky resource_tracker cleanup warnings — harmless on Windows where
+# temp memmap files are often cleaned externally. PYTHONWARNINGS is used (not
+# warnings.filterwarnings) because the resource_tracker runs in a spawned child
+# process that does not inherit the parent's in-process warning filters.
+_warn_extra = "ignore::UserWarning:joblib.externals.loky.backend.resource_tracker"
+_cur = os.environ.get("PYTHONWARNINGS", "")
+if _warn_extra not in _cur:
+    os.environ["PYTHONWARNINGS"] = f"{_cur},{_warn_extra}" if _cur else _warn_extra
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
@@ -157,7 +167,7 @@ def load_config(config_path="config.yaml", cli_args=None):
     # auto-discovery is the convenient default here)
     config_models = cli.get("models") if cli.get("models") is not None else (yaml_cfg.get("models") or None)
 
-    # --- datasets (KEEL), bearing, nids, heart ---
+    # --- datasets (KEEL), bearing, software_defect, heart ---
     # Strict: [] really means "none"; missing key means "all".
     config_datasets = _resolve_list(yaml_cfg, "datasets", cli.get("datasets"))
 
@@ -165,8 +175,8 @@ def load_config(config_path="config.yaml", cli_args=None):
     config_bearing_names = _resolve_list(bearing_cfg, "names", cli.get("bearing_names"))
     config_irs        = _resolve_list(bearing_cfg, "irs",   cli.get("irs"))
 
-    nids_cfg = yaml_cfg.get("nids") or {}
-    config_nids_names = _resolve_list(nids_cfg, "names", cli.get("nids_names"))
+    sdp_cfg = yaml_cfg.get("software_defect") or {}
+    config_sdp_names = _resolve_list(sdp_cfg, "names", cli.get("sdp_names"))
 
     heart_cfg = yaml_cfg.get("heart") or {}
     config_heart_names = _resolve_list(heart_cfg, "names", cli.get("heart_names"))
@@ -195,7 +205,7 @@ def load_config(config_path="config.yaml", cli_args=None):
         "datasets": config_datasets,          # None=all, []=none, [...]=only
         "bearing_names": config_bearing_names,# None=all, []=none, [...]=only
         "irs": tuple(config_irs) if config_irs else (),
-        "nids_names": config_nids_names,      # None=all, []=none, [...]=only
+        "sdp_names": config_sdp_names,         # None=all, []=none, [...]=only
         "heart_names": config_heart_names,    # None=all, []=none, [...]=only
         "n_folds": n_folds,
         "save_cm": save_cm,
@@ -270,21 +280,21 @@ def run_benchmark(config):
     datasets      = config["datasets"]
     bearing_names = config["bearing_names"]
     irs           = config["irs"]
-    nids_names    = config["nids_names"]
+    sdp_names     = config["sdp_names"]
     heart_names   = config["heart_names"]
 
     # --- smoke mode: if nothing is configured, provide a sensible default ---
     all_empty = (
         (datasets is None or len(datasets) == 0) and
         (bearing_names is None or len(bearing_names) == 0) and
-        (nids_names is None or len(nids_names) == 0) and
+        (sdp_names is None or len(sdp_names) == 0) and
         (heart_names is None or len(heart_names) == 0)
     )
     if smoke and all_empty:
         datasets = ["ecoli"]
         bearing_names = []
         irs = ()
-        nids_names = []
+        sdp_names = []
         heart_names = []
         n_folds = 5
 
@@ -293,7 +303,7 @@ def run_benchmark(config):
         keel_filter=_filter_set(datasets),
         bearing_irs=irs if irs else (5, 10, 20, 30),
         bearing_names=_filter_set(bearing_names),
-        nids_names=_filter_set(nids_names),
+        sdp_names=_filter_set(sdp_names),
         heart_names=_filter_set(heart_names))
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
@@ -424,8 +434,8 @@ def main():
                     help="Comma list of Bearing names (overrides config)")
     ap.add_argument("--irs", default=None,
                     help="Comma list of Bearing IRs, e.g. 5,20 (overrides config)")
-    ap.add_argument("--nids-names", default=None,
-                    help="Comma list of NIDS dataset names (overrides config)")
+    ap.add_argument("--sdp-names", default=None,
+                    help="Comma list of Software Defect dataset names, e.g. AR,KC (overrides config)")
     ap.add_argument("--heart-names", default=None,
                     help="Comma list of Heart dataset names (overrides config)")
     ap.add_argument("--n-folds", type=int, default=None,
@@ -461,8 +471,8 @@ def main():
                           if args.bearing_names else None),
         "irs": (tuple(int(x) for x in args.irs.split(","))
                 if args.irs else None),
-        "nids_names": ([x.strip() for x in args.nids_names.split(",")]
-                       if args.nids_names else None),
+        "sdp_names": ([x.strip() for x in args.sdp_names.split(",")]
+                       if args.sdp_names else None),
         "heart_names": ([x.strip() for x in args.heart_names.split(",")]
                         if args.heart_names else None),
         "n_folds": args.n_folds,

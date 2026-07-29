@@ -100,7 +100,13 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 # _fit_balanced_tree only uses numpy/scipy — it does not need sklearn's
 # thread-local config propagation, so joblib is the right choice and avoids
 # the sklearn "delayed should be used with Parallel" advisory entirely.
+#
+# On Windows the loky backend (multiprocessing spawn) causes worker crashes
+# whose exceptions are not reliably propagated to the main process, leading
+# to silent exits.  _fit_balanced_tree is numpy-heavy — numpy releases the
+# GIL during C-level ops — so the threading backend is equally fast.
 from joblib import Parallel, delayed
+from common import IS_WINDOWS
 
 
 # ---------------------------------------------------------------------------
@@ -448,10 +454,13 @@ class BalancedForest:
         seeds = [self.rng.randint(1 << 30) for _ in range(self.n_trees)]
         args = (X, y, self.Xg, self.max_depth, self.max_features, self.n_thresholds)
         if self.n_jobs and self.n_jobs != 1:
-            # trees are independent -> embarrassingly parallel; the loky pool is
-            # reused across the many forests of a run, so only the first call pays
-            # the worker startup cost.
-            self.trees = Parallel(n_jobs=self.n_jobs, backend="loky")(delayed(_fit_balanced_tree)(*args, s) for s in seeds)
+            # trees are independent -> embarrassingly parallel; on Linux/macOS the
+            # loky pool is reused across the many forests of a run so only the
+            # first call pays the worker startup cost.  On Windows loky is
+            # unreliable (spawn-based, crash-prone); threading is used instead
+            # — numpy releases the GIL during C ops so it's equally fast.
+            backend = "threading" if IS_WINDOWS else "loky"
+            self.trees = Parallel(n_jobs=self.n_jobs, backend=backend)(delayed(_fit_balanced_tree)(*args, s) for s in seeds)
         else:
             self.trees = [_fit_balanced_tree(*args, s) for s in seeds]
         return self

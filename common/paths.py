@@ -13,7 +13,7 @@ DATA_ROOT   = os.path.join(PROJECT_ROOT, "Dataset")
 KEEL_5FOLD  = os.path.join(DATA_ROOT, "KEEL", "5fold")        # <name>/fold{i}_{train,test}.csv
 BEARING_RAW = os.path.join(DATA_ROOT, "Bearing")             # <name>.csv  (raw, header w/ feat_* + label)
 BEARING_IR  = os.path.join(DATA_ROOT, "Bearing_IR")          # IR{5,10,20,30}/<name>.csv  (constructed)
-NIDS_RAW    = os.path.join(DATA_ROOT, "NIDS")              # <name>.csv  (raw, header w/ F1..FN + Label)
+SOFTWARE    = os.path.join(DATA_ROOT, "Software")          # AR.csv, CM.csv, KC.csv, MC.csv (features + defects label)
 HEART_RAW   = os.path.join(DATA_ROOT, "Heart")             # <name>.csv  (raw, header w/ features + label_last_col)
 
 RESULTS_DIR  = os.path.join(PROJECT_ROOT, "Result")
