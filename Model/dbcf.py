@@ -87,6 +87,7 @@ Paper-faithful parameter choices used here:
 
 import os
 import argparse
+import warnings
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -195,8 +196,17 @@ def up_down_sample(X, y, n_neighbors=7, rng=None, down_sample=True, strict_singl
     classes, counts = np.unique(y, return_counts=True)
     maj_count = counts.max()
     majority_classes = classes[counts == maj_count]
-    if strict_single_majority and len(majority_classes) != 1:
-        raise ValueError("DBCF assumes a single majority class; received " f"{len(majority_classes)} classes tied for the maximum count.")
+    if len(majority_classes) != 1:
+        # When multiple classes tie for the maximum count (e.g. perfectly
+        # balanced datasets), there is no unique majority class.  A balanced
+        # dataset needs no up-sampling anyway (n_need == 0 for every class),
+        # so any class can serve as the reference without changing the result.
+        if strict_single_majority:
+            warnings.warn(
+                f"DBCF up_down_sample: {len(majority_classes)} classes tied for "
+                f"the maximum count ({maj_count} samples each).  "
+                f"Dataset may be balanced — proceeding with class {majority_classes[0]} as reference."
+            )
     majority_class = majority_classes[0]
     # --- Up-sampling -------------------------------------------------------
     r = reception_rate(X, y, n_neighbors=n_neighbors)

@@ -583,9 +583,22 @@ class DEAHS:
         # Input X is ~80% of original data (after caller's test split).
         # val_adj = 0.2/0.8 = 0.25, so train:val = 75:25 of input = 60:20 of original
         val_adj = self.val_ratio / (1 - self.test_ratio)
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_sc, y_enc, test_size=val_adj,
-            stratify=y_enc, random_state=self.random_state)
+        try:
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_sc, y_enc, test_size=val_adj,
+                stratify=y_enc, random_state=self.random_state)
+        except ValueError as e:
+            if "least populated class" in str(e) or "too few" in str(e):
+                import warnings
+                warnings.warn(
+                    f"DEAHS: stratified split failed ({e}). "
+                    f"Falling back to unstratified split."
+                )
+                X_train, X_val, y_train, y_val = train_test_split(
+                    X_sc, y_enc, test_size=val_adj,
+                    random_state=self.random_state)
+            else:
+                raise
 
         # Identify majority/minority in training set
         maj_mask = y_train == self.majority_class_
