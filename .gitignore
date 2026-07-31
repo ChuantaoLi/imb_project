@@ -4,3 +4,4 @@
 /NIDS
 *.json
 Model/ours.py
+*.sh
