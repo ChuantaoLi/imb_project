@@ -17,15 +17,16 @@ SOFTWARE    = os.path.join(DATA_ROOT, "Software")          # AR.csv, CM.csv, KC.
 HEART_RAW   = os.path.join(DATA_ROOT, "Heart")             # <name>.csv  (raw, header w/ features + label_last_col)
 
 RESULTS_DIR  = os.path.join(PROJECT_ROOT, "Result")
-FIGURES_DIR  = os.path.join(RESULTS_DIR, "Figures", "Confusion")
+# FIGURES_DIR  = os.path.join(RESULTS_DIR, "Figures", "Confusion")
 CM_JSON_DIR  = os.path.join(RESULTS_DIR, "ConfusionMatrices")
-REPORTS_DIR  = os.path.join(RESULTS_DIR, "Reports")
-PERMODEL_DIR = os.path.join(RESULTS_DIR, "PerModel")
+# REPORTS_DIR  = os.path.join(RESULTS_DIR, "Reports")
+# PERMODEL_DIR = os.path.join(RESULTS_DIR, "PerModel")
 
 
 def ensure_dirs():
     """Lazily create the output directory tree (idempotent)."""
-    for d in (RESULTS_DIR, FIGURES_DIR, CM_JSON_DIR, REPORTS_DIR, PERMODEL_DIR,
+    for d in (RESULTS_DIR, CM_JSON_DIR,
+              # FIGURES_DIR, REPORTS_DIR, PERMODEL_DIR,
               BEARING_IR,
               *[os.path.join(BEARING_IR, f"IR{ir}") for ir in (5, 10, 20, 30)]):
         os.makedirs(d, exist_ok=True)

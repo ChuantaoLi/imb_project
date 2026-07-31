@@ -43,18 +43,19 @@ def smoke_common():
         print(f"  metrics[{tag},C={n}]: " + ", ".join(f"{k}={v:.3f}" for k, v in m.items()))
 
     # --- confusion matrix render: assert dpi=600 + TNR font active ---
-    import matplotlib.pyplot as plt
-    out_png = os.path.join(paths.FIGURES_DIR, "_smoke_common_cm.png")
-    yt = [np.array([0, 1, 2, 0, 1, 2, 0, 1]), np.array([2, 0, 1, 0, 2, 1, 0, 2])]
-    yp = [np.array([0, 1, 1, 0, 1, 2, 0, 1]), np.array([2, 0, 0, 0, 2, 1, 1, 2])]
-    save_confusion_matrix(yt, yp, [0, 1, 2], out_png, title="smoke_common", dpi=600)
-    from PIL import Image
-    im = Image.open(out_png)
-    dpi_x = im.info.get("dpi", (0, 0))[0]
-    assert abs(dpi_x - 600) < 1, f"dpi!=600, got {im.info.get('dpi')}"
-    fam = plt.rcParams["font.serif"][0]
-    assert fam == "Times New Roman", f"font not TNR, got '{fam}'"
-    print(f"  CM png: {out_png} dpi={im.info['dpi'][0]} font={fam}")
+    # 注释: 不再导出 Figures 文件夹
+    # import matplotlib.pyplot as plt
+    # out_png = os.path.join(paths.FIGURES_DIR, "_smoke_common_cm.png")
+    # yt = [np.array([0, 1, 2, 0, 1, 2, 0, 1]), np.array([2, 0, 1, 0, 2, 1, 0, 2])]
+    # yp = [np.array([0, 1, 1, 0, 1, 2, 0, 1]), np.array([2, 0, 0, 0, 2, 1, 1, 2])]
+    # save_confusion_matrix(yt, yp, [0, 1, 2], out_png, title="smoke_common", dpi=600)
+    # from PIL import Image
+    # im = Image.open(out_png)
+    # dpi_x = im.info.get("dpi", (0, 0))[0]
+    # assert abs(dpi_x - 600) < 1, f"dpi!=600, got {im.info.get('dpi')}"
+    # fam = plt.rcParams["font.serif"][0]
+    # assert fam == "Times New Roman", f"font not TNR, got '{fam}'"
+    # print(f"  CM png: {out_png} dpi={im.info['dpi'][0]} font={fam}")
 
     print("[smoke_common] PASS")
     return True
@@ -75,7 +76,8 @@ def run_smoke(build_fn, model_key, dataset="ecoli", n_folds=5, save_cm=True,
         return build_fn(random_state=seed, smoke=True)
 
     res = run_model_on_dataset(factory, desc, folds, classes,
-                               fig_dir=paths.FIGURES_DIR, model_key=model_key,
+                               # fig_dir=paths.FIGURES_DIR,  # 注释: 不再导出 Figures 文件夹
+                               model_key=model_key,
                                scale=scale, base_seed=base_seed, save_cm=save_cm)
     print(f"[SMOKE] {model_key} ->")
     for k in METRIC_KEYS:
