@@ -19,12 +19,37 @@ Usage:
 import os
 import sys
 import time
+import gc
+import json
+import subprocess
 import argparse
 import importlib
 import traceback
 import pandas as pd
+from dataclasses import asdict
 
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")   # torch libiomp5md guard
+
+# =============================================================================
+# Thread-limiting environment variables — prevent BLAS/OpenMP threading conflicts
+# that cause Segmentation fault (core dumped) on some hardware.
+# numpy / scipy / scikit-learn link against multi-threaded BLAS libraries
+# (OpenBLAS, MKL, etc.). When multiple threads compete for the same BLAS
+# resources, or when nested parallelism occurs (BLAS threads inside Python
+# threads or multiprocessing workers), the C-level libraries can segfault.
+# Setting each to 1 forces single-threaded BLAS throughout, which eliminates
+# these crashes at a negligible throughput cost for this workload.
+# =============================================================================
+_THREAD_LIMIT_VARS = [
+    "OMP_NUM_THREADS",           # OpenMP (used by many BLAS backends)
+    "OPENBLAS_NUM_THREADS",      # OpenBLAS
+    "MKL_NUM_THREADS",           # Intel MKL
+    "NUMEXPR_NUM_THREADS",       # NumExpr (used by pandas)
+    "VECLIB_MAXIMUM_THREADS",    # macOS Accelerate
+    "BLIS_NUM_THREADS",          # BLIS
+]
+for _tv in _THREAD_LIMIT_VARS:
+    os.environ[_tv] = "1"
 
 # Suppress loky resource_tracker cleanup warnings — harmless on Windows where
 # temp memmap files are often cleaned externally. PYTHONWARNINGS is used (not
@@ -66,6 +91,7 @@ def discover_models():
 
     Returns:
         dict: {model_key: module}  where model_key is the module's MODEL_KEY attr.
+        Also sets a ``_module_name`` attr on each value for subprocess use.
     """
     model_dir = os.path.join(PROJECT_ROOT, "Model")
     avail = {}
@@ -86,6 +112,7 @@ def discover_models():
             print(f"[run_all] skip '{mod_name}' (no build() yet)")
             continue
         model_key = getattr(mod, "MODEL_KEY", mod_name)
+        mod._module_name = f"Model.{mod_name}"   # for subprocess re-import
         avail[model_key] = mod
     return avail
 
@@ -118,6 +145,90 @@ def build_paper_name_map():
             # fallback: use MODEL_KEY as-is
             mapping[key] = key
     return mapping
+
+
+# =============================================================================
+# Subprocess isolation — each model×dataset cell runs in a child process so a
+# C-level crash (segfault) kills only that cell, not the whole benchmark.
+#
+# We use ``subprocess.run`` (not ``multiprocessing``) to avoid any risk of
+# multiprocessing-internal state corruption leaking into the main process.
+# The child is a standalone ``_run_cell.py`` script that prints one JSON line
+# to stdout and exits.  The main process only does lightweight bookkeeping.
+# =============================================================================
+
+CELL_TIMEOUT = 3600  # max seconds per model×dataset cell (1 hour)
+
+
+def _run_cell_isolated(model_key, module_name, desc, n_folds, paper_name,
+                       model_params, smoke, base_seed, save_cm, cm_json_dir,
+                       timeout=CELL_TIMEOUT):
+    """Spawn a child process for one model×dataset cell; return (status, data).
+
+    Uses ``subprocess.run`` to invoke ``_run_cell.py`` — a standalone script
+    that loads data, trains, evaluates, and prints one JSON result line.
+    This approach keeps the main process completely free of heavy C-extension
+    usage (numpy/scipy/sklearn), so it cannot segfault itself.
+
+    Returns:
+        ('success', metrics_dict)  on success
+        ('error', error_message)   on failure / timeout / crash
+    """
+    desc_json = json.dumps(asdict(desc), ensure_ascii=False)
+    model_params_json = json.dumps(model_params, ensure_ascii=False)
+
+    cmd = [
+        sys.executable,
+        os.path.join(PROJECT_ROOT, "_run_cell.py"),
+        "--model-key", model_key,
+        "--module-name", module_name,
+        "--dataset-json", desc_json,
+        "--n-folds", str(n_folds),
+        "--paper-name", paper_name,
+        "--base-seed", str(base_seed),
+        "--model-params-json", model_params_json,
+    ]
+    if smoke:
+        cmd.append("--smoke")
+    if save_cm and cm_json_dir:
+        cmd.extend(["--save-cm", "--cm-json-dir", cm_json_dir])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=PROJECT_ROOT,
+        )
+    except subprocess.TimeoutExpired:
+        return ('error', f'Timeout after {timeout}s')
+    except Exception as e:
+        return ('error', f'Subprocess launch failed: {e}')
+
+    # Non-zero exit code → C-level crash (segfault)
+    if proc.returncode != 0:
+        stderr_tail = (proc.stderr or "").strip()[-200:]
+        return ('error', f'Process crashed (exit {proc.returncode})'
+                f'{": " + stderr_tail if stderr_tail else ""}'
+                f' — likely segfault')
+
+    # Parse JSON result from stdout
+    stdout = (proc.stdout or "").strip()
+    if not stdout:
+        return ('error', 'No output from subprocess')
+
+    try:
+        result = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ('error', f'Invalid JSON from subprocess: {stdout[:200]}')
+
+    if result.get("status") == "success":
+        # Remove status key and return metrics
+        result.pop("status", None)
+        return ('success', result)
+    else:
+        return ('error', result.get("error", "Unknown error"))
 
 
 # =============================================================================
@@ -198,6 +309,9 @@ def load_config(config_path="config.yaml", cli_args=None):
     # --- resume ---
     resume = cli.get("resume", False)
 
+    # --- isolation ---
+    no_isolation = cli.get("no_isolation", False)
+
     return {
         "smoke": smoke,
         "mode": mode,
@@ -213,6 +327,7 @@ def load_config(config_path="config.yaml", cli_args=None):
         "base_seed": base_seed,
         "model_params": model_params,
         "resume": resume,
+        "no_isolation": no_isolation,
     }
 
 
@@ -220,18 +335,52 @@ def load_config(config_path="config.yaml", cli_args=None):
 # Atomic write helpers
 # =============================================================================
 
-def _atomic_to_xlsx(df, path):
-    """Write DataFrame to xlsx atomically (tmp then replace)."""
+# =============================================================================
+# Save helpers — CSV for durability during the run (avoids openpyxl C-ext
+# crashes); xlsx only for the final output.
+# =============================================================================
+
+_SAVE_BATCH_SIZE = 5
+
+
+def _save_rows_csv(rows, path):
+    """Save rows to CSV (stable, no C extensions)."""
+    tmp = path + ".tmp"
+    df = pd.DataFrame(rows)
+    df.to_csv(tmp, index=False, encoding="utf-8")
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    os.replace(tmp, path)
+
+
+def _load_csv(path):
+    """Load saved rows from CSV. Returns list of dicts."""
+    df = pd.read_csv(path, encoding="utf-8")
+    return df.to_dict("records")
+
+
+def _csv_to_xlsx(csv_path, xlsx_path):
+    """Convert final CSV to xlsx."""
     import openpyxl
     from openpyxl.utils.dataframe import dataframe_to_rows
-    tmp = path + ".tmp"
+    df = pd.read_csv(csv_path, encoding="utf-8")
+    tmp = xlsx_path + ".tmp"
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Results"
     for r in dataframe_to_rows(df, index=False, header=True):
         ws.append(r)
     wb.save(tmp)
-    os.replace(tmp, path)
+    if os.path.exists(xlsx_path):
+        try:
+            os.remove(xlsx_path)
+        except OSError:
+            pass
+    os.replace(tmp, xlsx_path)
+    print(f"[run_all] xlsx written to {os.path.basename(xlsx_path)}")
 
 
 # =============================================================================
@@ -243,6 +392,7 @@ def run_benchmark(config):
     smoke = config["smoke"]
     mode = config["mode"]
     resume = config["resume"]
+    no_isolation = config["no_isolation"]
     save_cm = config["save_cm"]
     base_seed = config["base_seed"]
     n_folds = config["n_folds"]
@@ -308,19 +458,32 @@ def run_benchmark(config):
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
 
-    # --- resolve output path ---
+    # --- resolve output paths ---
     out_file = config["out_file"]
     if out_file is None:
-        out_file = "Smoke_Results.xlsx" if smoke else "benchmark_results.xlsx"
-    out_path = os.path.join(paths.RESULTS_DIR, out_file)
+        base = "Smoke_Results" if smoke else "benchmark_results"
+    else:
+        base = out_file.replace(".xlsx", "").replace(".csv", "")
+    csv_path = os.path.join(paths.RESULTS_DIR, base + ".csv")
+    xlsx_path = os.path.join(paths.RESULTS_DIR, base + ".xlsx")
     paths.ensure_dirs()
 
-    # --- load existing results for resume ---
+    # --- load existing results for resume (CSV preferred; fallback to xlsx) ---
     rows = []
     completed = set()
-    if resume and os.path.isfile(out_path):
+    load_path = None
+    if csv_path and os.path.isfile(csv_path):
+        load_path = csv_path
+    elif os.path.isfile(xlsx_path):
+        load_path = xlsx_path
+
+    if resume and load_path:
         try:
-            existing_df = pd.read_excel(out_path, sheet_name="Results", engine="openpyxl")
+            if load_path.endswith(".csv"):
+                existing_df = pd.read_csv(load_path, encoding="utf-8")
+            else:
+                existing_df = pd.read_excel(load_path, sheet_name="Results",
+                                            engine="openpyxl")
             rows = existing_df.to_dict("records")
             for row in rows:
                 m = str(row.get("Model", ""))
@@ -328,9 +491,9 @@ def run_benchmark(config):
                 if m and d:
                     completed.add((m, d))
             print(f"[run_all] loaded {len(completed)} existing cells from "
-                  f"{os.path.basename(out_path)}")
+                  f"{os.path.basename(load_path)}")
         except Exception as e:
-            print(f"[run_all] could not read existing xlsx ({e}); starting fresh")
+            print(f"[run_all] could not read existing file ({e}); starting fresh")
 
     # --- report ---
     total_cells = len(ds_list) * len(avail)
@@ -339,7 +502,7 @@ def run_benchmark(config):
           f" run_all [{mode.upper()}]  models={len(avail)}  datasets={len(ds_list)}"
           f"  n_folds={n_folds}\n"
           f" existing={len(completed)}  new={new_cells}  total={total_cells}\n"
-          f" output={out_path}\n"
+          f" save={csv_path}\n"
           f"{'=' * 94}")
 
     # Confusion-matrix JSON dir
@@ -347,16 +510,19 @@ def run_benchmark(config):
     if cm_json_dir:
         os.makedirs(cm_json_dir, exist_ok=True)
 
-    # --- main loop ---
+    # --- main loop (each model×dataset can run in an isolated subprocess) ---
     for ds in ds_list:
+        # Pre-flight: verify the dataset can actually be loaded
         try:
-            folds, classes = load_folds(ds)
+            _, classes_pre = load_folds(ds)
         except Exception as e:
             print(f"\n--- LOAD FAIL {ds.name}: {e}")
             continue
-        folds_run = folds[:n_folds]
+
+        n_classes = len(classes_pre)
         for key, mod in avail.items():
             paper_name = paper_names.get(key, key)
+            module_name = getattr(mod, "_module_name", f"Model.{key}")
 
             if (paper_name, ds.name) in completed:
                 print(f"\n--- skip {paper_name:12s} | {ds.name} (already in xlsx) ---",
@@ -364,55 +530,93 @@ def run_benchmark(config):
                 continue
 
             t0 = time.time()
-            print(f"\n--- {paper_name:12s} | {ds.name} (C={len(classes)}, "
-                  f"fold={folds_run[0].X_train.shape[0]}x{folds_run[0].X_test.shape[0]}) ---",
-                  flush=True)
+            tag = "[direct]" if no_isolation else "[isolated]"
+            print(f"\n--- {paper_name:12s} | {ds.name} (C={n_classes})"
+                  f" {tag} ---", flush=True)
 
-            try:
-                # Build model factory with optional parameter overrides
-                extra_params = model_params.get(key, {})
-                factory = (lambda m, ep: (lambda seed: m.build(
-                    random_state=seed, smoke=smoke, **ep)))(mod, extra_params)
-                res = run_model_on_dataset(
-                    factory, ds, folds_run, classes,
-                    model_key=paper_name, base_seed=base_seed,
-                    save_cm=save_cm, cm_json_dir=cm_json_dir, verbose=smoke)
+            if no_isolation:
+                # --------------------------------------------------------------
+                # In-process path (original behaviour; for debugging)
+                # --------------------------------------------------------------
+                try:
+                    folds, classes = load_folds(ds)
+                    folds_run = folds[:n_folds]
+                    extra_params = model_params.get(key, {})
+                    factory = (lambda m, ep: (lambda seed: m.build(
+                        random_state=seed, smoke=smoke, **ep)))(mod, extra_params)
+                    result = run_model_on_dataset(
+                        factory, ds, folds_run, classes,
+                        model_key=paper_name, base_seed=base_seed,
+                        save_cm=save_cm, cm_json_dir=cm_json_dir, verbose=smoke)
+                    status, result_or_err = 'success', result
+                except Exception as e:
+                    status, result_or_err = 'error', str(e)
+            else:
+                # --------------------------------------------------------------
+                # Subprocess isolation: a C-level crash kills only this cell
+                # --------------------------------------------------------------
+                status, result_or_err = _run_cell_isolated(
+                    model_key=key,
+                    module_name=module_name,
+                    desc=ds,
+                    n_folds=n_folds,
+                    paper_name=paper_name,
+                    model_params=model_params,
+                    smoke=smoke,
+                    base_seed=base_seed,
+                    save_cm=save_cm,
+                    cm_json_dir=cm_json_dir,
+                )
+
+            elapsed = time.time() - t0
+
+            if status == 'success':
                 row = {
                     "Model": paper_name,
                     "Dataset": ds.name,
                     "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
                     "Source": ds.source,
                 }
-                row.update(res)
+                row.update(result_or_err)
                 metric_str = ""
-                if "Accuracy_mean" in res:
-                    metric_str = (f"Acc={res['Accuracy_mean']:.3f} "
-                                  f"F1={res['F1_mean']:.3f} "
-                                  f"GMean={res['GMean_mean']:.3f}")
-                print(f"    -> done in {time.time() - t0:.1f}s ({metric_str})",
+                if "Accuracy_mean" in result_or_err:
+                    metric_str = (f"Acc={result_or_err['Accuracy_mean']:.3f} "
+                                  f"F1={result_or_err['F1_mean']:.3f} "
+                                  f"GMean={result_or_err['GMean_mean']:.3f}")
+                print(f"    -> done in {elapsed:.1f}s ({metric_str})",
                       flush=True)
-            except Exception as e:
-                print(f"    -> ERROR: {type(e).__name__}: {e}", flush=True)
+            else:
+                print(f"    -> CRASH/ERROR: {result_or_err}", flush=True)
                 traceback.print_exc()
                 row = {
                     "Model": paper_name,
                     "Dataset": ds.name,
                     "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
                     "Source": ds.source,
-                    "Error": str(e),
+                    "Error": str(result_or_err),
                 }
 
             rows.append(row)
             completed.add((paper_name, ds.name))
-            _atomic_to_xlsx(pd.DataFrame(rows), out_path)
-            print(f"    [incremental save] {len(completed)}/{total_cells} cells -> "
-                  f"{os.path.basename(out_path)}", flush=True)
 
-    # --- final save ---
-    df = pd.DataFrame(rows)
-    _atomic_to_xlsx(df, out_path)
-    print(f"\n{'=' * 94}\n{len(rows)} cells total -> {out_path}\n{'=' * 94}")
-    return df
+            # --- release memory ---
+            gc.collect()
+
+        # --- end-of-dataset save to CSV (stable, no C extensions) ---
+        _save_rows_csv(rows, csv_path)
+        print(f"    [dataset save] {len(completed)}/{total_cells} cells -> "
+              f"{os.path.basename(csv_path)}", flush=True)
+
+    # --- final CSV save + optional xlsx conversion ---
+    _save_rows_csv(rows, csv_path)
+    print(f"\n{'=' * 94}\n{len(rows)} cells total -> {os.path.basename(csv_path)}"
+          f"\n{'=' * 94}")
+    # Convert to xlsx if requested
+    try:
+        _csv_to_xlsx(csv_path, xlsx_path)
+    except Exception as e:
+        print(f"[run_all] xlsx conversion failed ({e}); CSV is at {csv_path}")
+    return pd.DataFrame(rows)
 
 
 # =============================================================================
@@ -444,6 +648,8 @@ def main():
                     help="Output xlsx path (overrides config)")
     ap.add_argument("--resume", action="store_true",
                     help="Resume from last run (skip completed cells)")
+    ap.add_argument("--no-isolation", action="store_true",
+                    help="Run cells in-process instead of isolated subprocesses")
     ap.add_argument("--list-models", action="store_true",
                     help="Print discovered models with paper names and exit")
     args = ap.parse_args()
@@ -478,6 +684,7 @@ def main():
         "n_folds": args.n_folds,
         "out": args.out,
         "resume": args.resume,
+        "no_isolation": args.no_isolation,
     }
 
     config = load_config(args.config, cli)

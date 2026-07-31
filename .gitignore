@@ -3,3 +3,4 @@
 /Bearing
 /NIDS
 *.json
+Model/ours.py
