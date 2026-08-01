@@ -28,6 +28,7 @@ models:
 #   - ILMNN
   # - imDEF
   # - mc_ccr
+  - mc_rbo
   # - mdo
   # - nromm
   # - orem_m
@@ -36,20 +37,19 @@ models:
   # - smom
   # - soup
   # - SPE
-  - AdaBoostAD 
-  - LexiBoost
-  - DualLexiBoost
-  - Ours
+  # - AdaBoostAD 
+  # - LexiBoost
+  # - DualLexiBoost
+  # - Ours
 
 # ---------------------------------------------------------------------------
 # KEEL datasets（Dataset/KEEL/5fold/ 下的文件夹名）
 # [] = 排除全部 KEEL；不写 = 自动发现全部
 # ---------------------------------------------------------------------------
-# datasets: []    # 排除 KEEL
+datasets: []      # 排除 KEEL
 # datasets:
-#   - ecoli1
-#   - glass0
-#   - yeast1
+#   - pima
+#   - yeast
 
 # ---------------------------------------------------------------------------
 # Bearing datasets（Dataset/Bearing_IR/ 下）
@@ -60,18 +60,18 @@ models:
 # bearing:
 #   names: []      # [] = 不运行任何 Bearing 数据集
 #   irs: []        # [] = 不运行任何 IR
-# bearing:
-#   names:
+bearing:
+  names:
     # - CWRU
     # - Gearbox
     # - HUST
     # - JNU
     # - MFPT
-    # - Ottawa
+    - Ottawa
     # - SEU
     # - XJTU
-  # irs:
-  #   - 30
+  irs:
+    - 30
   #   - 10
 
 # ---------------------------------------------------------------------------
@@ -79,8 +79,8 @@ models:
 # names: 数据集名 (AR, CM, KC, MC)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-# software_defect:
-#   names: []      # [] = 不运行任何 Software Defect 数据集
+software_defect:
+  names: []      # [] = 不运行任何 Software Defect 数据集
 # software_defect:
 #   names:
 #     - AR
@@ -91,8 +91,8 @@ models:
 # names: 数据集名 (10Ydata, 7Ydata, Framingham, SPECTF)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-# heart:
-#   names: []      # [] = 不运行任何 Heart 数据集
+heart:
+  names: []      # [] = 不运行任何 Heart 数据集
 # heart:
 #   names:
 #     - 10Ydata

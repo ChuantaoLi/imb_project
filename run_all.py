@@ -13,7 +13,7 @@ Usage:
     python run_all.py --config my_conf.yaml   # use a different config
     python run_all.py --full                  # full benchmark (overrides config)
     python run_all.py --models soup,spe       # restrict models (overrides config)
-    python run_all.py --resume               # resume from last interruption
+    python run_all.py --resume               # deprecated — resume is automatic
     python run_all.py --list-models           # print discovered models and exit
 """
 import os
@@ -336,8 +336,9 @@ def load_config(config_path="config.yaml", cli_args=None):
 # =============================================================================
 
 # =============================================================================
-# Save helpers — CSV for durability during the run (avoids openpyxl C-ext
-# crashes); xlsx only for the final output.
+# Save helpers — CSV is the durable mid-run state (avoids openpyxl C-ext
+# crashes in the main process).  It is only an internal working file and is
+# removed once the final xlsx has been written.
 # =============================================================================
 
 _SAVE_BATCH_SIZE = 5
@@ -391,7 +392,6 @@ def run_benchmark(config):
     """Run the benchmark. Returns the results DataFrame."""
     smoke = config["smoke"]
     mode = config["mode"]
-    resume = config["resume"]
     no_isolation = config["no_isolation"]
     save_cm = config["save_cm"]
     base_seed = config["base_seed"]
@@ -468,7 +468,10 @@ def run_benchmark(config):
     xlsx_path = os.path.join(paths.RESULTS_DIR, base + ".xlsx")
     paths.ensure_dirs()
 
-    # --- load existing results for resume (CSV preferred; fallback to xlsx) ---
+    # --- always load existing results and continue appending to them ---
+    # (CSV preferred; fallback to xlsx).  Cells already present are skipped
+    # regardless of --resume, so a re-run never overwrites/rebuilds the file
+    # from scratch — old rows are merged back in at the final save.
     rows = []
     completed = set()
     load_path = None
@@ -477,7 +480,7 @@ def run_benchmark(config):
     elif os.path.isfile(xlsx_path):
         load_path = xlsx_path
 
-    if resume and load_path:
+    if load_path:
         try:
             if load_path.endswith(".csv"):
                 existing_df = pd.read_csv(load_path, encoding="utf-8")
@@ -488,20 +491,26 @@ def run_benchmark(config):
             for row in rows:
                 m = str(row.get("Model", ""))
                 d = str(row.get("Dataset", ""))
-                if m and d:
+                # error rows are NOT "completed" — they get retried next run
+                if m and d and not row.get("Error"):
                     completed.add((m, d))
             print(f"[run_all] loaded {len(completed)} existing cells from "
                   f"{os.path.basename(load_path)}")
         except Exception as e:
             print(f"[run_all] could not read existing file ({e}); starting fresh")
 
-    # --- report ---
+    # --- report (existing counts only cells inside the current grid, so
+    # 'new' can never go negative from other models' / datasets' rows) ---
+    sel_models = {paper_names.get(k, k) for k in avail}
+    sel_datasets = {ds.name for ds in ds_list}
+    existing_in_grid = sum(1 for (m, d) in completed
+                           if m in sel_models and d in sel_datasets)
     total_cells = len(ds_list) * len(avail)
-    new_cells = total_cells - len(completed)
+    new_cells = total_cells - existing_in_grid
     print(f"\n{'=' * 94}\n"
           f" run_all [{mode.upper()}]  models={len(avail)}  datasets={len(ds_list)}"
           f"  n_folds={n_folds}\n"
-          f" existing={len(completed)}  new={new_cells}  total={total_cells}\n"
+          f" existing={existing_in_grid}  new={new_cells}  total={total_cells}\n"
           f" save={csv_path}\n"
           f"{'=' * 94}")
 
@@ -578,6 +587,11 @@ def run_benchmark(config):
                     "Source": ds.source,
                 }
                 row.update(result_or_err)
+                # drop any stale error row for this cell (now retried) so the
+                # file stays deduped
+                rows = [r for r in rows
+                        if not (str(r.get("Model", "")) == paper_name
+                                and str(r.get("Dataset", "")) == ds.name)]
                 metric_str = ""
                 if "Accuracy_mean" in result_or_err:
                     metric_str = (f"Acc={result_or_err['Accuracy_mean']:.3f} "
@@ -597,7 +611,8 @@ def run_benchmark(config):
                 }
 
             rows.append(row)
-            completed.add((paper_name, ds.name))
+            if status == 'success':
+                completed.add((paper_name, ds.name))
 
             # --- release memory ---
             gc.collect()
@@ -607,15 +622,21 @@ def run_benchmark(config):
         print(f"    [dataset save] {len(completed)}/{total_cells} cells -> "
               f"{os.path.basename(csv_path)}", flush=True)
 
-    # --- final CSV save + optional xlsx conversion ---
+    # --- final CSV save + xlsx conversion ---
     _save_rows_csv(rows, csv_path)
     print(f"\n{'=' * 94}\n{len(rows)} cells total -> {os.path.basename(csv_path)}"
           f"\n{'=' * 94}")
-    # Convert to xlsx if requested
+    # Convert to xlsx and drop the interim CSV — the xlsx is the only deliverable
     try:
         _csv_to_xlsx(csv_path, xlsx_path)
+        try:
+            os.remove(csv_path)
+            print(f"[run_all] interim {os.path.basename(csv_path)} removed "
+                  f"(xlsx is the only deliverable)")
+        except OSError:
+            pass  # leftover CSV is harmless — next run re-reads and merges it
     except Exception as e:
-        print(f"[run_all] xlsx conversion failed ({e}); CSV is at {csv_path}")
+        print(f"[run_all] xlsx conversion failed ({e}); CSV kept at {csv_path}")
     return pd.DataFrame(rows)
 
 
@@ -647,7 +668,8 @@ def main():
     ap.add_argument("--out", default=None,
                     help="Output xlsx path (overrides config)")
     ap.add_argument("--resume", action="store_true",
-                    help="Resume from last run (skip completed cells)")
+                    help="(deprecated) resume is automatic — existing cells "
+                         "are always loaded and skipped")
     ap.add_argument("--no-isolation", action="store_true",
                     help="Run cells in-process instead of isolated subprocesses")
     ap.add_argument("--list-models", action="store_true",
