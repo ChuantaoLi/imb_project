@@ -1,0 +1,136 @@
+      IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 74, 2025                                                                                      3565215
+
+
+
+
+            Ensemble Automatic Sample Selector With Soft
+             Actor–Critic for Imbalanced Fault Diagnosis
+       Xinmin Zhang , Member, IEEE, Bojian Chen , Graduate Student Member, IEEE, Saite Fan , Xuerui Zhang ,
+                                               and Zhihuan Song
+
+
+         Abstract—Aiming at the problem of sample selection of                          fields. However, due to the high complexity of process indus-
+      extremely imbalanced data for fault diagnosis in industrial                       tries, especially large-scale industrial processes, it is difficult to
+      processes, an ensemble automatic sample selector (EASS) based                     obtain accurate physical principles and sufficient professional
+      on the soft actor–critic (SAC) is proposed in this article. In                    knowledge, which brings great challenges to mechanism-based
+      EASS, SAC is employed to solve the decision problem of sample
+      selection, and the idea of ensemble learning is introduced to                     and knowledge-based models. As an alternative, data-driven
+      improve the stability of the model. In addition, a new type of                    industrial process fault diagnosis methods can reduce the
+      state (error density) is designed as its input, which plays the role              dependence of fault diagnosis technology on physical prin-
+      of boosting in combination with ensemble learning and solves                      ciples and expert knowledge. Data-driven fault diagnosis has
+      the problem of overfitting. The practicability and superiority of                 been widely studied in the field of intelligent manufacturing,
+      the proposed method have been verified on synthetic datasets                      and has received more and more attention with the collection
+      and industrial datasets. Experimental results show that the
+                                                                                        of massive data and the development of artificial intelligence
+      proposed EASS method can effectively deal with the imbalanced
+      modeling problem and improve the fault diagnosis accuracy and                     [4], [5], [6].
+      model generalization ability compared with other state-of-the-art                    The fault classification problem is one of the typical appli-
+      methods.                                                                          cations of the data-driven fault diagnosis method [7], [8], [9].
+         Index Terms—Ensemble learning, fault diagnosis, imbalanced
+                                                                                        It aims to analyze different health conditions of the industrial
+      learning, industrial processes, sample selector, soft actor–critic                process and identify the fault types by using easy-to-measure
+      (SAC).                                                                            process variables. Data-driven fault classification methods
+                                                                                        have been widely studied because of their flexibility, ease of
+                                                                                        use, and low cost. In recent years, many fault classification
+                                 I. I NTRODUCTION                                       methods based on machine learning have been proposed and
+                                                                                        applied to various industrial processes [10], [11]. Neverthe-
+      I  N MODERN industries, the fault diagnosis technology,
+         as an advanced intelligent decision support module, is
+      essential to ensure the orderly operation of the process and
+                                                                                        less, in the actual industrial production process, industrial
+                                                                                        equipment often runs stably under normal conditions, so the
+                                                                                        occurrence of faults is contingent. The collected fault data are
+      maintain the performance of the system. A powerful and
+                                                                                        very limited, and the rare fault data damages the performance
+      accurate fault diagnosis system helps to prevent fatal accidents,
+                                                                                        of conventional modeling methods based on the massive data.
+      save costs, and improve production efficiency. In the past
+                                                                                        Except for the large difference in the amount of data between
+      few decades, a large number of industrial fault diagnosis
+                                                                                        the fault and normal samples, there are also large differences
+      methods have been proposed [1], [2], [3]. Generally, these
+                                                                                        in the amount of data between various faults. For example,
+      methods can be classified into three categories: mechanism-
+                                                                                        the probability of failure of parts with large losses is often
+      based methods, knowledge-based methods, and data-driven
+                                                                                        greater than that of other parts. Such a difference in the order
+      methods. The mechanism-based method is designed based on
+                                                                                        of magnitude leads to a certain relative imbalance between
+      physical principles and relevant fault mechanisms, while the
+                                                                                        different fault classes. This imbalanced characteristic violates
+      knowledge-based approach mainly depends on professional
+                                                                                        the assumption of a relatively balanced distribution of most
+      knowledge and long-term accumulated experience in specific
+                                                                                        classification algorithms, significantly reducing fault classifi-
+        Received 10 July 2025; revised 15 September 2025; accepted 20 Septem-
+                                                                                        cation performance and resulting in a high false negative (FN)
+      ber 2025. Date of publication 12 November 2025; date of current                   rate. Unfortunately, most traditional classifiers, such as support
+      version 18 November 2025. This work was supported in part by                      vector machines [12], neural networks [13], and Bayesian
+      the Key Research and Development Program of Ningbo under Grant                    networks [14], tend to show a significant decline in the
+      2024T011, in part by the National Key Research and Development
+      Program of China under Grant 2022ZD0120003, and in part by the                    performance of imbalanced classification problems, and these
+      National Natural Science Foundation of China under Grant 62473103 and             methods generally tend to classify pairs of dominant classes
+      Grant 62573384. The Associate Editor coordinating the review pro-                 while ignoring a few classes. Therefore, how to reasonably
+      cess was Dr. Benkuan Wang. (Corresponding authors: Bojian Chen;                   use imbalanced data for fault classification is very important
+      Saite Fan.)
+        The authors are with the State Key Laboratory of Industrial Control             for machine health management and industrial process moni-
+      Technology, College of Control Science and Engineering, Zhejiang                  toring.
+      University, Hangzhou 310027, China (e-mail: xinminzhang@zju.edu.cn;                  The conquest of class imbalance in fault diagnosis appli-
+      bjchen@zju.edu.cn;        fansaite@zju.edu.cn;   xrzhang0121@zju.edu.cn;
+      songzhihuan@zju.edu.cn).
+                                                                                        cations has been the focus of researchers, and several
+        Digital Object Identifier 10.1109/TIM.2025.3619212                              achievements have been achieved. The methods of solving
+                    1557-9662 © 2025 IEEE. All rights reserved, including rights for text and data mining, and training of artificial intelligence and
+                              similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.
+                                            See https://www.ieee.org/publications/rights/index.html for more information.
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:02:39 UTC from IEEE Xplore. Restrictions apply.
+      3565215                                                                     IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 74, 2025
+
+
+
+      class imbalance problems can be divided into three categories:                    is easy to combine with some powerful skills to solve
+      the data-level, algorithm-level, and hybrid approaches. The                       imbalanced problems. More specifically, the objective of
+      first category is the data-level approach, which tends to                         EASS is to conceptualize the sampler as a model, integrating
+      rebalance the class distribution through various data sam-                        the learning process of the sampler and formalizing it within
+      pling or generation technologies in the data preprocessing                        the framework of the reinforcement learning process. In each
+      stage. Data-level methods are mainly divided into four cate-                      episode, EASS takes the current state of the ensemble training
+      gories: undersampling [15], oversampling [16], [17], cleaning                     (i.e., the error density on the training set and the validation
+      resampling [18], and data augmentation [19]. However, under-                      set) as its input. After state input, EASS selects samples
+      sampling and oversampling without any guidance often lead to                      from the original dataset. The sample selection method is a
+      overfitting and underfitting problems. The cleaning resampling                    new low-complexity weight calculation method. The selected
+      method needs to meet some assumptions. The data augmen-                           samples are constructed into a new dataset to train the updated
+      tation technology improves the classification performance of                      base model, which is subsequently further integrated. Each
+      the model by generating composite samples, oversampling,                          integration is to input the current error density into the
+      or reweighting existing samples. The data augmentation tech-                      actor network to obtain a new action, which is equivalent to
+      nology has been widely studied as a new data-level method,                        the process of boosting. Repeat the state input to the base
+      but it is unstable. The second category is the algorithm-level                    model integration to complete the learning of an episode.
+      approach, which solves the class imbalance problem directly                       The reinforcement learning is trained with the episode as a
+      from the perspective of algorithm design. Cost-sensitive learn-                   unit until the model converges. EASS expects the sampler to
+      ing is one of the most representative algorithm-level methods                     maximize the final fault classification performance by learning
+      [20]. Cost-sensitive learning is universal in many fields [21],                   from this interaction and to improve the generalization ability
+      but it requires domain experts to provide the cost matrix in                      of the model.
+      advance, which is usually not feasible in practice. Recently,                        The main contributions of this article are summarized as
+      many algorithm-level methods have been mainly based on                            follows.
+      the design of new loss functions, such as FocalLoss [22].                            1) A new framework, EASS, is proposed that funda-
+      For the third category, hybrid approaches combine the data-                               mentally reframes imbalanced sample selection as a
+      level and algorithm-level methods [23]. While significant                                 sequential decision problem, enabling a reinforcement
+      progress has been made in addressing class imbalance in fault                             learning agent to learn a dynamic sampling policy that
+      diagnosis applications, existing methods still face several crit-                         adapts to the evolving state of the ensemble model.
+      ical limitations. Specifically, concerning data-level approaches                     2) A novel ensemble strategy embeds a boosting-like pro-
+      to tackle class imbalance: undersampling techniques often                                 cess within each reinforcement learning episode by
+      discard potentially valuable information, while oversampling                              incrementally adding base classifiers to dynamically
+      methods frequently lead to overfitting issues, particularly                               focus on hard examples.
+      when applied without proper guidance. Cleaning resampling                            3) A robust state representation based on error density is
+      methods necessitate specific distributional assumptions that                              developed to bridge the ensemble model and the rein-
+      may not hold true in real-world industrial scenarios. More-                               forcement learning agent, guiding hard-example mining
+      over, data augmentation techniques, though promising, can                                 and overfitting prevention.
+      suffer from instability in performance across different datasets.                    4) The superiority of the proposed EASS framework is
+      Beyond these data-centric issues, the design of critical com-                             demonstrated through extensive experiments, validating
+      ponents, such as the cost matrix, often relies heavily on                                 its effectiveness in addressing imbalanced fault diagnosis
+      expert knowledge, thereby compromising the generalizability                               challenges.
+      of these methods. Furthermore, many existing approaches                              The rest of this article is organized as follows. Section II
+      display heightened sensitivity to outliers or noise, resulting                    introduces some preliminary studies. Section III presents a
+      in unstable performance. These collective limitations hinder                      detailed description of the proposed EASS for imbalanced
+      the practical effectiveness and reliability of current methods                    fault diagnosis. Section IV presents the application results of
+      in real-world applications.                                                       the proposed method as compared with other state-of-the-art
+         To solve

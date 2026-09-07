@@ -20,36 +20,21 @@
 # ---------------------------------------------------------------------------
 # models: []
 models:
-#   - DBCF
-#   - DEAHS
-#   - EB-SMOTE
-#   - FRAME
-#   - glos
-#   - ILMNN
-  # - imDEF
-  # - mc_ccr
-  - mc_rbo
-  # - mdo
-  # - nromm
-  # - orem_m
-  # - QC-SMOTE
-  # - shsampler
-  # - smom
-  # - soup
-  # - SPE
-  # - AdaBoostAD 
-  # - LexiBoost
-  # - DualLexiBoost
-  # - Ours
+  - DDPM
+  - DiagSelect
+  - DMSAM-OAdB
+  - EASS
+  - HRIELM
 
 # ---------------------------------------------------------------------------
 # KEEL datasets（Dataset/KEEL/5fold/ 下的文件夹名）
 # [] = 排除全部 KEEL；不写 = 自动发现全部
 # ---------------------------------------------------------------------------
-datasets: []      # 排除 KEEL
+# datasets: []      # 排除 KEEL
 # datasets:
 #   - pima
 #   - yeast
+datasets: []
 
 # ---------------------------------------------------------------------------
 # Bearing datasets（Dataset/Bearing_IR/ 下）
@@ -57,21 +42,21 @@ datasets: []      # 排除 KEEL
 # irs:   不平衡率 (5, 10, 20, 30)
 # [] = 排除全部；不写 = 全部
 # ---------------------------------------------------------------------------
-# bearing:
-#   names: []      # [] = 不运行任何 Bearing 数据集
-#   irs: []        # [] = 不运行任何 IR
 bearing:
-  names:
+  names: []      # [] = 不运行任何 Bearing 数据集
+  irs: []        # [] = 不运行任何 IR
+# bearing:
+#   names:
     # - CWRU
     # - Gearbox
     # - HUST
     # - JNU
     # - MFPT
-    - Ottawa
+    # - Ottawa
     # - SEU
     # - XJTU
-  irs:
-    - 30
+  # irs:
+    # - 30
   #   - 10
 
 # ---------------------------------------------------------------------------
@@ -127,7 +112,41 @@ output:
 # Keys are MODEL_KEY values; values are dicts of build() parameter overrides.
 # Parameters not listed here use the model's default values.
 # ---------------------------------------------------------------------------
-model_params: {}
+model_params:
+  DDPM:
+    diffusion_steps: 1000
+    diffusion_epochs: 3000 # 修改
+    classifier_epochs: 30 # 什么分类器
+    max_generated_per_class: 30 # 什么意思
+    device: torch
+  DiagSelect:
+    classifier: dt # 随机森林
+    episodes: 10 # 修改
+    max_selected_samples: 5000  # 什么意思
+    backend: torch
+  DMSAM-OAdB:
+    n_estimators: 4
+    epochs: 30
+    device: torch
+  EASS:
+    classifier: dt
+    episodes: 10
+    n_estimators: 5
+    hidden_dim: 50
+    updates: 1
+    backend: torch
+  HRIELM:
+    hidden_neurons: 256
+
+# Active run selection for the requested experiment.  This block is last so
+# it overrides the legacy commented/empty bearing example above.
+bearing:
+  names: [CWRU, Gearbox, HUST, JNU, MFPT, Ottawa, SEU, XJTU]
+  irs: [30]
+software_defect:
+  names: []
+heart:
+  names: []
 # model_params:
 #   DBCF:
 #     n_forests: 8

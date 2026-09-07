@@ -1,0 +1,816 @@
+                                                      Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+                                                                     Contents lists available at ScienceDirect
+
+
+                                       Engineering Applications of Artificial Intelligence
+                                                         journal homepage: www.elsevier.com/locate/engappai
+
+
+
+
+Denoising diffusion probabilistic model-enabled data augmentation method
+for intelligent machine fault diagnosis
+Pengcheng Zhao a , Wei Zhang b , Xiaoshan Cao a , Xiang Li c,*
+a
+  School of Civil Engineering and Architecture, Xi’an University of Technology, Xi’an, Shaanxi, 710054, China
+b
+  School of Aerospace Engineering, Shenyang Aerospace University, Shenyang, Liaoning, 110136, China
+c
+  School of Mechanical Engineering, Xi’an Jiaotong University, Xi’an, Shaanxi, 710049, China
+
+
+
+
+A R T I C L E I N F O                                      A B S T R A C T
+
+Keywords:                                                  Bearing fault is one of the main causes of rotating machinery failure. However, collecting sufficient failure data
+Rotating machinery                                         proves challenging in real-world industrial environments due to their complexity. Owing to this constraint, the
+Fault diagnosis                                            majority of current methods fail to accurately identify fault types with limited data, thereby impeding timely
+Wavelet transform
+                                                           maintenance efforts. To address this issue, we propose a bearing fault diagnosis method utilizing diffusion model
+Data augmentation
+Denoising diffusion probabilistic model
+                                                           data enhancement in this study. Following data collection, we employ the continuous wavelet transform to
+                                                           convert various one-dimensional vibration data into two-dimensional time series graphs. Subsequently, these
+                                                           feature graphs are partitioned into sets of fault samples. Then, the diffusion model is employed to augment the
+                                                           training samples. These augmented samples are then fed into the convolutional neural network for fault diag­
+                                                           nosis, and their diagnostic accuracy is compared with that of the original dataset. The comparative analysis
+                                                           demonstrates that the data augmentation technique, founded on the diffusion model, enhances fault diagnosis
+                                                           accuracy within a small sample training dataset. Ultimately, the efficacy of the proposed method is validated
+                                                           utilizing the Paderborn bearing dataset and juxtaposed against alternative data augmentation techniques. The
+                                                           findings indicate that the diffusion model-based data augmentation method outperforms other techniques in
+                                                           terms of both training accuracy and stability, particularly in scenarios with small sample.
+
+
+
+
+1. Introduction                                                                                   system reliability and performance. Various signal processing methods
+                                                                                                  have been effectively utilized in analyzing fault signals derived from
+    Rotary machinery has found extensive application in modern in­                                vibration data (Li et al., 2015; Ragab et al., 2016; Shen et al., 2014), with
+dustrial production (Tang et al., 2024; Li et al., 2021; Zhou et al., 2019).                      exploration extending to other signals like acoustic emission. These
+Bearings, as essential components in rotating machinery, hold a pivotal                           methods are commonly categorized into three domains (Chen et al.,
+position in the manufacturing process. Considering the challenging                                2015): time domain, frequency domain, and time-frequency domain
+working environment and intricate structure, the primary components                               (Wang et al., 2017; Wu et al., 2017). Traditional approaches typically
+of the bearing—including the inner ring, outer ring, and rolling body­                            necessitate substantial prior expertise in fault diagnosis and signal
+—are susceptible to damage. As bearing failures can result in both                                processing, rendering them less suitable for industrial contexts. Conse­
+economic losses and potential casualties, prognostics and health man­                             quently, intelligent fault diagnosis methods, which yield reliable results
+agement (PHM) especially fault diagnosis is of great significance for                             without extensive professional knowledge prerequisites, are gaining
+rotating machinery in order to ensure reliability and safety (Wang et al.,                        traction. Extensive data-driven research has leveraged machine learning
+2024; Kim et al., 2024; Shi et al., 2024; Yang et al., 2024a). In real-world                      and statistical inference techniques, including artificial neural networks
+engineering scenarios, fault diagnosis of bearings faces complex chal­                            (ANN) (Bin et al., 2012; Tian, 2012), support vector machines (SVM)
+lenges, including intricate system structures, varying operating condi­                           (Zhang et al., 2015), random forest (RF) (Yang et al., 2008), fuzzy
+tions, data noise interference, fault evolution, limited data availability,                       reasoning, and other refined algorithms (Wang et al., 2017, 2019; Aydin
+nonlinear relationships, and high costs and safety risks. These factors                           et al., 2015; Zhang et al., 2013).
+make accurate fault diagnosis difficult but essential for maintaining                                 Among various bearing fault detection methods, intelligent fault
+
+
+    * Corresponding author.
+      E-mail addresses: 2220720043@stu.xaut.edu.cn (P. Zhao), zw_7126257@163.com (W. Zhang), caoxsh@xaut.edu.cn (X. Cao), lixiang@xjtu.edu.cn (X. Li).
+
+https://doi.org/10.1016/j.engappai.2024.109520
+Received 18 June 2024; Received in revised form 20 September 2024; Accepted 18 October 2024
+Available online 22 October 2024
+0952-1976/© 2024 Elsevier Ltd. All rights are reserved, including those for text and data mining, AI training, and similar technologies.
+P. Zhao et al.                                                                                       Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+                           Fig. 1. The fundamental process diagram of data augmentation for DDPM-based bearing fault diagnosis.
+
+
+diagnosis technology stands out as the most widely employed (Li et al.,           trained image models and sophisticated algorithms tailored for image
+2024a). With the swift advancement of artificial intelligence, PHM                data can further enhance fault detection and diagnosis. Converting vi­
+leveraging deep learning has emerged as a prominent research focus                bration data into two-dimensional images using Continuous Wavelet
+(Wang et al., 2024; Kim et al., 2024; Shi et al., 2024; Yang et al., 2024a;       Transform (CWT) addresses these limitations by capturing time-
+Song et al., 2024; Zhang and Hu, 2019; Yang et al., 2024b; Zhao and               frequency features, enabling multi-scale analysis, visually representing
+Chen, 2024; Qiang et al., 2024; Balshaw et al., 2024; Li et al., 2024b).          fault characteristics, and effectively separating noise. This approach
+Additionally, multi-modal data fusion and adaptive online monitoring              enhances feature representation, improving the performance and reli­
+technologies have improved both the comprehensiveness and real-time               ability of fault diagnosis models. Additionally, the original generation
+capabilities of fault detection (Ma et al., 2018; Peng et al., 2024; Zhang        model struggles to generate high-quality one-dimensional time series
+et al., 2024). Generative Adversarial Networks (GANs) are being used              data. With the benefits of multi-resolution analysis, the practicality of
+for data augmentation (Li et al., 2022), while reinforcement learning             wavelet transform in diagnosing faults in rotating machinery has been
+optimizes fault detection strategies (Fan et al., 2022; Li et al., 2023a).        convincingly demonstrated (Chen et al., 2016).
+Feature selection and dimensionality reduction techniques have also                    In the presence of intricate noise within the sample and negligible
+increased model efficiency and interpretability (Zheng et al., 2024;              distinctions among diverse fault characteristics, the transformation of
+Natsumeda and Yairi, 2024). These developments reflect ongoing                    the sample into two-dimensional imagery via the CWT approach may
+innovation and progress in the field of machine fault diagnosis.                  still preclude the explicit delineation of fault attributes. Consequently,
+    One-dimensional time series data in fault diagnosis often face chal­          this can result in the oversight of subtle disparities between normal and
+lenges such as limited frequency domain information, difficulty                   fault data, thereby manifesting as an issue of diminished sensitivity in
+extracting hidden features, high noise sensitivity, and poor interpret­           detection. Nevertheless, deep learning techniques have addressed these
+ability. The Wavelet Transform (WT) offers a broader selection of basis           challenges. Deep learning methods employ intricate multi-layered
+functions to precisely match specific fault symptoms, facilitating effi­          neural network architectures that facilitate the efficient handling and
+cient fault feature extraction. Converting vibration data into two-               processing of substantial datasets, enabling the acquisition of sophisti­
+dimensional images enables the use of convolutional neural networks               cated image features. They have been demonstrated to exhibit superior
+(CNNs), which are highly effective at detecting spatial patterns and              performance in terms of efficiency and precision when dealing with
+features in images. This method can reveal complex patterns in the vi­            extensive volumes of data. Nonetheless, the requirement for copious
+bration data that may be challenging to identify in raw time-series               amounts of data to facilitate training poses considerable difficulties for
+format. Additionally, the two-dimensional image facilitates easier                deep learning in practical, real-world scenarios. In actual industrial
+visualization and interpretation of data patterns, anomalies, and trends,         production, rolling bearing faults are frequently sporadic and rare. This
+highlighting crucial characteristics for accurate fault diagnosis. Repre­         leads to an imbalance in the types of available bearing faults for
+senting vibration data as images allows for the application of advanced           collection, and the sample data amount is consequently limited. The
+image processing and machine learning techniques. Utilizing pre-                  imbalanced distribution of data poses a challenge for traditional
+
+
+                                                                              2
+P. Zhao et al.                                                                                        Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+                                                                                  augmentation, we assume that the training and testing input samples are
+                                                                                  derived from images obtained through the continuous wavelet trans­
+                                                                                  form of the original dataset. The diffusion model is then employed to
+                                                                                  augment the training set directly. The fundamental process diagram is
+                                                                                  illustrated in Fig. 1.
+                                                                                      The remainder of this article initiates with an explanation of the
+                                                                                  proposed approach in the “Proposed Method” section, encompassing an
+                                                                                  introduction to the principles of the diffusion model, deep learning ar­
+                         Fig. 2. DDPM processes.
+                                                                                  chitectures, and data enhancement techniques. The “Experimental
+                                                                                  studies” section employs two rolling bearing datasets to validate the
+methods (Li et al., 2023b), often leading to issues like overfitting,
+                                                                                  proposed method. The paper concludes with a summary in the
+especially in the presence of a small sample fault database. This can
+                                                                                  “Conclusion” section.
+adversely impact the effectiveness of the diagnosis process. In the case of
+issues like sample imbalance, traditional solutions have limitations in
+                                                                                  2. Proposed method
+optimizing diagnostic performance (Lu et al., 2022). In recent years,
+there has been increasing research on the use of generative adversarial
+                                                                                      In this section, we describe the basic principles of the diffusion
+networks for data enhancement and fault diagnosis of small samples.
+                                                                                  model, introduce the forward process, the reverse process, the posterior
+Wang et al. proposed adaptive variational autoencoding generative
+                                                                                  distribution of the diffusion model, and how to construct the loss func­
+adversarial networks (AVAEGAN) for data enhancement and application
+                                                                                  tion. In the “Model establishment” chapter, we introduce the neural
+to fault diagnosis (Wang et al., 2023). Chen et al. proposed an innovative
+                                                                                  network structure used in the diffusion model to predict the noise, and
+data augmentation approach for addressing the small-sample imbal­
+                                                                                  the neural network structure used in the bearing data fault diagnosis.
+anced problem: the balanced conditioning convolutional neural net­
+works (CNN) Transformer architecture based generative adversarial
+                                                                                  2.1. DDPM
+network (BCTGAN) (Chen et al., 2024). Jian et al. proposed a novel
+open-set domain generalization (OSDG) learning framework that in­
+                                                                                      Denoising diffusion probabilistic models akin to other generative
+tegrates a data generation module (DGM) and a feature learning module
+                                                                                  models, denoising diffusion probabilistic models facilitate the genera­
+(FLM) (Jian et al., 2024). Li et al. proposed a novel fault diagnosis
+                                                                                  tion of target data samples by starting with noise sampled from a simple
+method using variational autoencoder generation adversarial network
+                                                                                  distribution.
+and improved convolutional neural network, named VGAIC-FDM (Li
+                                                                                      The process of Denoising Diffusion Probabilistic Models (DDPMs),
+et al., 2024c). Zhang et al. presented a prior knowledge-augmented
+                                                                                  which involves iteratively refining a noisy image to generate high-
+self-supervised feature learning framework for few-shot fault diagnosis
+                                                                                  quality samples, is illustrated in Fig. 2. It begins with an image that is
+(Zhang et al., 2022). Shen et al. presented a stable synthetic minority
+                                                                                  progressively corrupted by noise through a series of steps, creating a
+oversampling technique (SSMOTE) to generate the artificial fault data,
+                                                                                  diffusion process. During training, the model learns to reverse this cor­
+which are then mixed with the raw fault data to achieve data augmen­
+                                                                                  ruption by denoising the image step-by-step, ultimately reconstructing
+tation (Shen et al., 2023). Jonathan Ho et al. (2020) introduced
+                                                                                  the original high-quality image from noise. This denoising process is
+denoising diffusion probabilistic models (DDPM), a technique
+                                                                                  guided by a learned neural network, which helps the model generate
+commonly employed in the domains of machine learning and image
+                                                                                  accurate samples by gradually improving the image quality with each
+processing. This method is utilized for generating new samples or im­
+                                                                                  step.
+ages. DDPM is grounded in a concept known as the “diffusion process,”
+                                                                                      In diffusion models, probabilistic terms play a central role in
+encompassing two phases of noise-adding and denoising. In scenarios
+                                                                                  describing and controlling the randomness and uncertainty of the data
+with limited bearing fault samples, denoising diffusion probabilistic
+                                                                                  generation process. During the diffusion process, noise is progressively
+models can generate high-quality and diverse fault data through its
+                                                                                  added to the data through a series of probability distributions (usually
+step-by-step generation and optimization process, robust denoising
+                                                                                  Gaussian), transforming the original data distribution into one that
+capability, and training stability. This is essential for expanding the
+                                                                                  closely resembles Gaussian noise. In the reverse process, diffusion
+training dataset in fault diagnosis tasks and plays a significant role in
+                                                                                  models use probabilistic terms for denoising, aiming to generate realistic
+improving the accuracy and reliability of the diagnostic models. Further
+                                                                                  data from pure noise. During training, maximum likelihood estimation is
+details on this process are elaborated in the subsequent sections.
+                                                                                  employed to find the probability distribution of the Markov chain in the
+    The convolutional network leverages its feature extraction function
+                                                                                  reverse process, with the goal of minimizing the difference between the
+to derive more precise features from matrix or spectral images of bearing
+                                                                                  generated and real data distributions. Probabilistic terms also influence
+fault data (Shao et al., 2021). While DDPM has achieved maturity in the
+                                                                                  the model’s parameterization, determining how noise is added and
+field of image processing (Croitoru et al., 2023; Kazerouni et al., 2023),
+                                                                                  removed at each step. Thus, diffusion models achieve data generation
+It aids in enhancing the quality of images by optimizing color, contrast,
+                                                                                  and recovery by controlling these probabilistic terms.
+and resolution, thereby restoring their original characteristics (Guan
+et al., 2024; Lu et al., 2023). Additionally, it excels in eliminating un­
+                                                                                  2.1.1. Forward process
+wanted occlusions or interference, thus refining the overall visual clarity
+                                                                                      In this section, we introduce the forward process of the diffusion
+(Zhang et al., 2023; Perera et al., 2023; Tao, 2024). Furthermore, the
+                                                                                  model, the forward diffusion stage transforms the clear image into a
+diffusion model can generate simulated images or data under specific
+                                                                                  noisy image by gradually adding Gaussian noise in preparation for the
+conditions (He et al., 2024). In the realm of medical imaging, particu­
+                                                                                  subsequent reverse diffusion stage.
+larly in tasks like biomedical image segmentation, the diffusion model is
+                                                                                      The initial data, X0 , adheres to distribution p(X0 ). The Gaussian noise
+also gradually applied (Liu et al., 2024). Multispectral images with high
+                                                                                  introduced does not involve trainable parameters; its mean and variance
+spatial resolution can be recovered by using diffusion model (Meng
+                                                                                  remain constant. The sole determinant of noise intensity is the fixed
+et al., 2023). The diffusion model can be used to generate images for
+                                                                                  variance coefficient β1 …βT .
+data enhancement (Chen et al., 2023). There is a scarcity of research on
+                                                                                      The entire process is characterized as a fixed Markov chain, where
+the generation of two-dimensional images of fault data and the expan­
+                                                                                  the conditional transition distribution at each step is denoted as
+sion of the sample database. In this paper, we delve into sample
+                                                                                  p(Xt |Xt− 1 ), contributing to the overall posterior distribution represented
+augmentation for mechanical vibration data. In the case of sample-based
+                                                                                  as p(X1:T |X0 ).
+
+                                                                              3
+P. Zhao et al.                                                                                                      Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+                                                                                               1 − αt− 1
+                                                                                         β̃t =           β                                                                         (9)
+                                                                                                1 − αt t
+                                                                                                       √̅̅̅̅                      √̅̅̅̅̅̅̅̅
+                                                                                                         αt (1 − αt− 1 )      αt− 1 βt
+                                                                                         μ(xt , t) =
+                                                                                         ̃                              Xt +           X0                                         (10)
+                                                                                                            1 − αt           1 − αt
+                                                                                              The diffusion models use maximum likelihood estimation to find the
+                                                                                         probability distribution of the Markov chain transformation in the
+                                                                                         process of reverse diffusion, which is the training purpose of the diffu­
+                                                                                         sion models. That is, the goal is to maximize the log-likelihood of the
+                                                                                         model prediction distribution, and to minimize the negative log-
+                                                                                         likelihood from the point of view of Loss reduction. Its upper bound is
+                                                                                         determined through variational inference, specifically, the cross-
+                                                                                         entropy of the joint probability distribution p(X1:T |X0 ) for the forward
+                                                                                         diffusion process and qθ (X0:T ) for the inverse process given X0 .
+                                                                                              Inference-wise, with X0 given, the KL divergence between the pos­
+                                                                                         terior transfer distribution p(Xt− 1 |Xt , X0 ) of the forward diffusion process
+                                                                                         and the inverse transfer distribution qθ (Xt− 1 |Xt ) is a sequentially itera­
+                                                                                         tive and consistently updated Gaussian distribution.
+                                                                                              The mean μ and variance Σ of p(Xt− 1 |Xt , X0 ) are determined. The
+                                                                                         variance Σ θ in the hypothesis qθ (Xt− 1 |Xt ) is solely linked to the special
+                                                                                         value of β; thus, the focus is on learning μθ (Xt , t).
+                                                                                              The loss function simplifies to
+                                                                                                                   [⃦        (√̅̅̅̅   √̅̅̅̅̅̅̅̅̅̅̅̅̅ )⃦2 ]
+      Fig. 3. Vibration data following continuous wavelet transformation.                 Lsimple
+                                                                                           t
+                                                                                                                    ⃦
+                                                                                                  = Et∼[1,T],X0 ,ϵt ⃦ϵt − ϵθ   αt X0 + 1 − αt ϵt , t ⃦
+                                                                                                                                                      ⃦              (11)
+
+
+                  T
+                  ∏                                                                      where ϵθ represents the predicted value of a neural network with pa­
+p(X1:T |X0 ) =          p(Xt |Xt− 1 )                                         (1)        rameters, while ϵt denotes the random amount of noise at the current
+                  t=1                                                                    moment.
+   The transition distribution, p(Xt |X0 ), at any given time can be directly
+derived from the coefficients βt and the initial state X0 .                              2.1.4. Model inference
+                    √̅̅̅̅                                                                    The diffusion model is a process of gradually denoising samples
+p(Xt |X0 ) = N (Xt ; αt Xt− 1 , (1 − αt )I)                               (2)            generated by random Gaussian noise to generate new samples. The
+                                                                                         provided Gaussian noise is the date at the Xt step. Then the noise ϵ_θ
+where αt and αt described in equations (3) and (4).                                      predicted by the neural network is gradually denoised, this process will
+αt = 1 − βt                                                                   (3)        stop at timestep 1. By equation (5) we get Xt− 1 ∼ qθ (Xt− 1 |Xt ), then we
+                                                                                         can further get the calculation formula from Xt to Xt− 1 , such as equation
+       t
+       ∏                                                                                 (12).
+αt =         αi                                                               (4)                     [                             ]
+       i=1                                                                                        1          1 − αt
+                                                                                         Xt− 1 = √̅̅̅̅ Xt − √̅̅̅̅̅̅̅̅̅̅̅̅̅ ϵ(Xt , t) + σ t Z                     (12)
+                                                                                                   αt         1 − αt
+2.1.2. Reverse process
+   In this section, we introduce the reverse process of the diffusion                    where Z ∼ N (0, І) is a two-dimensional standard Gaussian distribu­
+model, the reverse diffusion stage trains a noise predictor to predict the               tion. The outlined inference algorithm is depicted in Algorithm 1.
+noise added to the original image, thereby removing noise from the                       Algorithm1.           DDPM algorithm
+noisy image and getting a clearer image.
+                                                                                          1: Xt ∼ N (0, І)
+   Utilizing neural networks to acquire the transfer distribution.                        2: for t = T, ⋯, 1 do
+                                                                                             Z ∼ N (0, І) if t > 1, else Z = 0
+qθ (Xt− 1 |Xt ) = N (Xt− 1 ; μθ (xt , t), Σ θ (xt , t))                       (5)                     1
+                                                                                                          [
+                                                                                                                 1 − αt
+                                                                                                                                        ]
+                                                                                             Xt− 1 = √̅̅̅̅ Xt − √̅̅̅̅̅̅̅̅̅̅̅̅̅ ϵ(Xt , t) + σt Z
+                                                                                                       αt         1 − αt
+                        T
+                        ∏                                                                 3: end for
+qθ (X0:T ) = q(XT )           qθ (Xt− 1 |Xt )                                 (6)         4: return X0
+                        t=1
+
+    The network input, xt , and time, t, are known. The transfer distri­
+bution is characterized by parameters: mean μθ and variance Σ θ . The
+objective is to solve for θ. The inverse transition distribution, qθ (Xt− 1 |Xt ),       2.2. Model establishment
+is approximated by the forward posterior distribution, p(Xt− 1 |Xt , X0 ).
+                                                                                             Initially, our starting point is the assumption that the sensor captures
+2.1.3. Objective function                                                                the primary mechanical vibration signal. In the process of data
+   According to Bayes’ formula calculated                                                augmentation of a one-dimensional vibration signal using a diffusion
+                                                                                         model, we find this difficult, so we need to preprocess the one-
+                                           p(Xt− 1 , X0 )
+p(Xt− 1 |Xt , X0 ) = p(Xt |Xt− 1 , X0 )                                       (7)        dimensional vibration signal. Following this, we implement the
+                                            p(Xt , X0 )
+                                                                                         continuous wavelet transform to convert the acquired vibration signals
+                                                                                         (shown in Fig. 3). This transformation alters the one-dimensional vi­
+p(Xt− 1 |Xt , X0 ) = N (Xt− 1 ; ̃
+                                μ(xt , t), β̃t I)                             (8)
+                                                                                         bration signals into two-dimensional image signals, preparing them for
+                                                                                         further processing. Subsequently, the resultant image dataset undergoes
+where β̃t and ̃
+              μ(xt , t) described in equations (9) and (10).
+                                                                                         partitioning into three distinct segments: the validation dataset, the test
+
+                                                                                     4
+P. Zhao et al.                                                                                          Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+Fig. 4. Figure a represents a two-dimensional image sample from the Paderborn dataset, exhibiting mixed damage of inner and outer circles, while Figure b depicts a
+DDPM-generated sample sharing the same label.
+
+
+
+
+                                                                Fig. 5. DDPM structure diagram.
+
+
+dataset, and the training dataset, serving as input for data enhancement.            operating with an epoch of 3000 and a time step of 1000. The U-Net
+Subsequent to this partitioning, we proceed to prepare both the training             network, well-known for its efficacy in image processing, serves as the
+and test datasets for subsequent analysis and modeling.                              denoising model in the DDPM framework. Its primary task involves
+    The data enhancement model utilizes the two-dimensional image                    noise prediction, a critical step laying the groundwork for subsequent
+derived from the wavelet transformation as its input, whereas the                    processes within the diffusion model. During the encoder operation of
+diffusion model employs samples of identical fault types to generate                 the U-Net network, 4–5 pooling layers are employed for continuous
+fresh two-dimensional image samples. These novel samples demonstrate                 resolution reduction through downsampling, acquiring image data
+similar traits to the initial input, albeit potentially diverging in partic­         across various scales. This progression sees a shift from foundational
+ulars, as demonstrated in Fig. 4. The potential of employing these freshly           information like points, lines, and gradients towards more abstract
+generated samples by denoising diffusion probabilistic models (DDPM)                 contours and elevations. The network completes feature extraction and
+for data enhancement will be investigated in forthcoming chapters. Both              integration, enhancing the comprehensiveness of information obtained.
+the improved 2D image samples and the original, unenhanced training                  Furthermore, U-Net’s architecture integrates skip connections, facili­
+samples serve as inputs for the model. The design of the proposed deep               tating seamless information flow across layers. These connections
+learning architecture is subsequently determined, taking into account                enable the network to fuse feature maps from corresponding encoder
+specific fault diagnosis issues and dataset characteristics.                         positions during each level’s upsampling. By merging low-level and
+    The diffusion model is employed to generate new training samples,                high-level features, the network preserves high-resolution details from
+
+
+                                                                                 5
+P. Zhao et al.                                                                                         Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+                                                                                    assess the viability of augmentation with the diffusion model on the
+                                                                                    CWRU dataset, while three enhancement methods were compared on
+                                                                                    the Paderborn dataset. The network’s performance is thoroughly
+                                                                                    examined, considering various data augmentation techniques, network
+                                                                                    depths, among other factors. These results are then compared with
+                                                                                    recent findings on the same dataset, confirming the effectiveness and
+                                                                                    superiority of the proposed method. For more information on the
+                                                                                    datasets used, refer to the “Experiments on CWRU Datasets” and the
+                                                                                    “Experiments on Paderborn Datasets".
+                                                                                       All experiments were implemented using the PyTorch platform.
+                                                                                    Specifically, experiments employing the diffusion model in sample
+                                                                                    enhancement were carried out on a PC equipped with a GeForce GTX
+                                                                                    1080 Ti GPU. The remaining experiments were conducted on a PC with a
+                                                                                    GeForce GTX 3060 GPU.
+
+                                                                                    3.1. Experiments on CWRU dataset
+
+                                                                                       This section explores data augmentation methods utilizing diffusion
+                                                                                    models on the CWRU rolling bearing dataset from the Bearing Data
+                                                                                    Center of Case Western Reserve University.
+
+             Fig. 6. Convolutional neural network structure diagram.                1. Data introduction
+
+the latter, thereby enhancing image segmentation accuracy. Cross-layer                  The CWRU (Case Western Reserve University) bearing dataset is a
+feature reconstruction augments feature information transmission,                   widely used benchmark in fault diagnosis research. It consists of vibra­
+leveraging rich details from high-level convolutional layers and maxi­              tion data collected from bearings under various conditions. The data was
+mizing information utilization across the network’s layers. A U-Net                 recorded using accelerometers at different fault sizes and motor loads.
+network without skip connections would have a bottleneck, causing                   The signals are sampled at a high frequency, providing rich time-domain
+information loss. Typically, the dimension of the middle layer is much              data, which can be transformed into frequency or time-frequency rep­
+smaller than that of the input, contributing to the fuzzy generation seen           resentations for fault detection and classification tasks. The Case West­
+in Variational auto-encoder (VAE) series. The overall structure of U-Net            ern Reserve University bearing test platform consists of a 2 HP electric
+is straightforward, robust, and efficient, significantly minimizing loss            motor, a torque sensor/decoder, a power tester, and electronic con­
+(Liu et al., 2019). The structure of the diffusion model is depicted in             trollers. The bearing under examination supports the rotating shaft of
+Fig. 5.                                                                             the motor, with the driving end bearing being SKF6205 and a sampling
+    To initiate the deep learning process, training samples are first               frequency of 12 KHz and 48 KHz. The fan end bearing is SKF6203, with a
+transmitted into the proposed neural network. This network consists of              sampling frequency of 12 KHz. The motor speed fluctuates between
+multiple layers, each capable of learning the underlying features of the            1730 and 1797 RPM, depending on the applied load (Hendriks et al.,
+data, which are combined to form a highly abstract representation. At               2022).
+the end of the structure, the learned features are used to classify the fault           The vibration signals analyzed in this section are derived from the
+categories of rolling bearings. The network’s weights are updated using             motor drive end of the test bench, capturing four distinct health states:
+backpropagation. The training process is repeated until the network’s               (1) normal state (H), (2) outer ring failure (OF), (3) inner ring failure
+performance reaches a satisfactory level or the training rounds are                 (IF), and (4) rolling body failure (BF). All three faults originate from
+completed. After training, test data samples are fed into the trained               Electrical Discharge Machining (EDM), with fault diameters measuring
+network, and the accuracy of fault diagnosis is evaluated by calculating            7 mils, 14 mils, and 21 mils (1 mil = 0.001 inches). As a result, the
+the consistency between the predicted outputs and the actual labels.                dataset encompasses 10 bearing health states under 4 loads, grouping
+This accuracy rate reflects the network’s reliability and effectiveness in          identical health states under different loads into a single class.
+identifying faults in practical applications.
+    The fault classification convolutional neural network, illustrated in           2. Experimental settings
+Fig. 6, comprises three main sections: the input layer, hidden layers, and
+output layer. Operating on wavelet images as input, it provides classi­                 In this study, samples from each health state of the driving end
+fication and diagnosis results post-training. The hidden layers include 3           bearing, with a sampling frequency of 12 KHz under a single load, are
+convolution layers, 3 pooling layers, and 2 fully connected layers. The             chosen as input for continuous wavelet transform. From all output im­
+convolutional layers consist of 16, 6, and 1 sets of convolutional kernels,         ages, 100 are selected for the training set, while 2500 are chosen for both
+respectively, activated by the ReLU function. The final normalized layer            the validation and test sets, respectively. The two-dimensional con­
+connects to a fully connected layer with 64 neurons, further linked to a            volutional neural network (2D-CNN) is ideal for processing such data
+fully connected layer with either 11 or 4 neurons activated by softmax              due to its ability to effectively capture local spatial features with con­
+through a randomly deactivated layer with a parameter of 1. The test                volutional filters, detecting patterns like edges and textures. Therefore, a
+model is optimized using the Adam loss optimizer with a learning rate of            fault classification experiment was conducted using a 2D-CNN, trained
+0.001. The classification cross-entropy loss function is employed for               with a batch size of 200 for 300 epochs. After training on ten fault
+model loss calculation, with 64 samples inputted for each batch, align­             conditions, the test dataset achieved an accuracy of 74%.
+ing with test requirements.                                                             To assess the viability of the diffusion model for data enhancement,
+                                                                                    100 images from the training set are employed as input samples for the
+3. Experimental studies                                                             diffusion model, generating 500 synthetic vibration images after
+                                                                                    wavelet transformation. These 500 images, along with the original
+   In this section, we investigate the impact of three types of data                training set, constitute a new training set, while the validation and test
+augmentation via an experimental study. Two datasets are employed to                sets remain unaltered. Utilizing a batch size of 200, an epoch number of
+
+                                                                                6
+P. Zhao et al.                                                                                    Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+Table 1                                                                       augmented data are shown in Table 1, and confusion matrices are shown
+CWRU dataset generated by DDPM.                                               in Fig. 7.
+                          Original data        With 500 generated data
+                                                                              3.2. Experiments on paderborn dataset
+  Test accuracy           74.00%               87.60%
+
+                                                                                In this section, the data enhancement method based on the diffusion
+300, and employing a two-dimensional convolutional neural network             model is investigated using the German Paderborn bearing dataset.
+for fault classification, the test accuracy is evaluated.
+                                                                              Table 2
+3. Experimental results                                                       Paderborn dataset generated by Gaussian Noise.
+                                                                                          original data      with 40 generated data        with 80 generated data
+   Fault diagnosis on the original data achieved an accuracy of 74%.
+                                                                               Data 1     0.798              0.842                         0.852
+After data augmentation using the diffusion model, the test accuracy
+                                                                               Data 2     0.738              0.803                         0.820
+achieved is 87.6%. The test results of the original data and the
+
+
+
+
+                                          Fig. 7. Confusion matrices of CWRU dataset generated by DDPM.
+
+
+
+
+                                                        Fig. 8. Paderborn bearing test stand.
+
+
+
+
+                                                 Fig. 9. Confusion matrices of Paderborn dataset.
+
+                                                                          7
+P. Zhao et al.                                                                                              Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+                                              Fig. 10. Confusion matrices of Paderborn dataset generated by Gaussian Noise.
+
+
+Table 3                                                                                 Table 5
+The deconvolution structure of the Generator.                                           Paderborn dataset generated by DCGAN.
+  No.     Layer Type           Kernel Size/       Input      Output       Padding                   original data      with 40 generated data        with 80 generated data
+                               Stride             Size       Size
+                                                                                         Data 1     0.798              0.847                         0.825
+  1       transposed           4 × 4/1 × 1        100        512          No             Data 2     0.738              0.814                         0.831
+          convolution
+  2       transposed           4 × 4/2 × 2        512        256          Yes
+          convolution                                                                   1. Data introduction
+  3       transposed           4 × 4/2 × 2        256        128          Yes
+                                                                                             The test bench comprises a motor, a torque measuring shaft, a
+          convolution
+  4       transposed           4 × 4/2 × 2        128        64           Yes
+                                                                                           rolling bearing test module, a flywheel, and a load motor. Experi­
+          convolution                                                                      mental data are generated by installing ball bearings with various
+  5       transposed           4 × 4/2 × 2        64         100          Yes              damage types in the bearing test module. The motor current is
+          convolution                                                                      sampled at a frequency of 64 KHz, the vibration signal at 64 KHz, and
+                                                                                           mechanical parameters (loading force, loading moment, speed) at 4
+                                                                                           KHz. Temperature is sampled at 1Hz. All test bearing models are
+                                                                                           6203 rolling bearings. Bearing failures are categorized into artificial
+Table 4
+The deconvolution structure of the Discriminator.                                          and real damage. Artificial damage is primarily induced through
+                                                                                           electric spark (cracking), drilling (peeling), and electric engraving
+  No.     Layer Type    Kernel Size/Stride     Input Size   Output Size   Padding
+                                                                                           machine (pitting). Real damage bearings undergo accelerated life
+  1       convolution   4 × 4/2 × 2            100          64            Yes              testing. Injury types include single point, repetitive, and multiple
+  2       convolution   4 × 4/2 × 2            64           128           Yes
+                                                                                           injuries. Repetitive and multiple injuries are further classified as
+  3       convolution   4 × 4/2 × 2            128          256           Yes
+  4       convolution   4 × 4/2 × 2            256          512           Yes              regular, random, or non-repetitive injuries (Huo et al., 2023).
+  5       convolution   4 × 4/1 × 1            512          1             No                 The dataset comprises 12 artificially damaged bearings (7 with
+                                                                                           outer ring damage, 5 with inner ring damage), 14 bearings damaged
+                                                                                           through accelerated life testing (5 with outer ring damage, 6 with
+Published in 2016 by Paderborn University in Germany, this dataset                         inner ring damage, and 2 with compound inner and outer ring
+aims to support the application of data-driven classification methods for                  damage), and 6 healthy bearings. In addition to vibration signals, the
+monitoring bearing damage in electromechanical drive systems using                         data also includes motor current signals, with the objective of
+motor current signals. The dataset comprises numerous vibration signals                    achieving fault diagnosis in rotating machinery through analysis of
+generated by the bearing test bench, illustrated in Fig. 8.                                the motor current signal.
+
+
+                                                                                    8
+P. Zhao et al.                                                                                             Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+                                                 Fig. 11. Confusion matrices of Paderborn dataset generated by DCGAN.
+
+
+                                                                                        3.2.1. Data augmentation based on Gaussian noise
+Table 6                                                                                     This section explores the impact of data augmentation through the
+Paderborn dataset generated by DDPM.
+                                                                                        addition of Gaussian noise. By adding a Gaussian noise to the sample, we
+                 original data   with 40 generated data    with 80 generated data       obtain the augmented signal sample (Li et al., 2020). Gaussian noise is a
+  Data 1         0.798           0.896                     0.923                        popular method for data augmentation in fault diagnosis, offering both
+  Data 2         0.738           0.842                     0.863                        benefits and drawbacks. Its advantages include ease of generation and
+                                                                                        application, enhanced model robustness by reducing sensitivity to minor
+                                                                                        data variations, and prevention of overfitting by encouraging the
+2. Experimental settings
+                                                                                        learning of generalized features. However, Gaussian noise also has
+      In this study, samples of 6203 deep groove ball bearings, with a
+                                                                                        limitations: it introduces random variations that may not accurately
+   pitch circle diameter of 28.55 mm, were chosen as input for
+                                                                                        represent diverse or realistic fault conditions, potentially obscuring
+   continuous wavelet transform under the conditions of a test speed of
+                                                                                        subtle fault features. Additionally, excessive noise can lead to overly
+   900 revolutions per minute, a loading torque of 0.7N*m, and a radial
+                                                                                        generalized models that miss critical fault details. The target for adding
+   force of 1000N, considering four health states (inner ring damage,
+                                                                                        Gaussian noise is 40 vibrational images from the original training set.
+   outer ring damage, mixed inner and outer ring damage, and healthy
+                                                                                        Noise, generated from a normal distribution, is introduced. The mean of
+   state). From all the resulting images, we will build two training
+                                                                                        the distribution is 0 and the variance of the distribution is 0.01.
+   datasets, each containing 40 different wavelet transform images.
+                                                                                            An additional 40 and 80 noisy images are generated and incorpo­
+   There are four working conditions: healthy state, inner ring damage,
+                                                                                        rated into the original 40 vibrating images, forming two new training
+   outer ring damage, and mixed inner and outer ring damage, with ten
+                                                                                        sets, while the validation set and test set remain unaltered. The training
+   images in each working condition. We named these two different
+                                                                                        and test sets have a batch size of 200 and an epoch number of 300.
+   training sets “Data 1″ and “Data 2.” Then, two sets of 400 wavelet
+                                                                                        Utilizing a two-dimensional convolutional neural network for fault
+   transform images were selected as the validation and testing sets.
+                                                                                        classification, test accuracies of 84.2% and 85.2% are achieved for Data
+   The batch size and epoch number for the training and test sets were
+                                                                                        1, respectively. Test accuracies of 80.3% and 82% are achieved for Data
+   set to 200 and 300, respectively. Utilizing a two-dimensional con­
+                                                                                        2, respectively. The test results of the original data and the augmented
+   volutional neural network for fault classification.
+                                                                                        data are shown in Table 2, and confusion matrices are shown in Fig. 10.
+3. Experimental results
+      The achieved test accuracy for Data 1 is 79.8%, and for Data 2, it is
+                                                                                        3.2.2. Data augmentation based on DCGAN
+   73.8%. The accuracy confusion matrices of Data 1 and Data 2 are
+                                                                                            This section explores the impact of data augmentation through the
+   shown in Fig. 9.
+                                                                                        addition of DCGAN-generated images. Deep Convolutional Generative
+                                                                                        Adversarial Network (DCGAN), based on traditional Generative Adver­
+                                                                                        sarial Networks (GAN), incorporates convolutional neural networks into
+
+
+                                                                                    9
+P. Zhao et al.                                                                                           Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+                                            Fig. 12. Confusion matrices of Paderborn dataset generated by DDPM.
+
+
+                                                                                      set have a batch size of 200 and an epoch number of 300. Utilizing a two-
+Table 7
+                                                                                      dimensional convolutional neural network for fault classification, Data 1
+Comparison of 3 methods on Data 1.
+                                                                                      achieves test accuracies of 84.7% and 82.5%, respectively. Data 2 ach­
+  Data 1         original      with 40 generated data   with 80 generated data        ieves test accuracies of 81.4% and 83.1%, respectively. The test results
+                 data
+                                                                                      of the original data and the augmented data are shown in Table 5, and
+  Gaussian       0.798         0.842                    0.852                         confusion matrices are shown in Fig. 11.
+   Noise
+  DCGAN          0.798         0.847                    0.825
+  DDPM           0.798         0.896                    0.923
+                                                                                      3.2.3. Data augmentation based on DDPM
+                                                                                          This section explores the impact of data augmentation through the
+                                                                                      addition of diffusion model-generated images. The input samples for the
+                                                                                      diffusion model consist of 40 vibration images from the original training
+Table 8
+                                                                                      set. The diffusion model employed aligns with the structural setup
+Comparison of 3 methods on Data 2.
+                                                                                      outlined in Section 3.3.1.
+  Data 2         original      with 40 generated data   with 80 generated data            An additional 40 and 80 new images are generated and incorporated
+                 data
+                                                                                      into the original 40 motion images, forming 2 new training sets, while
+  Gaussian       0.738         0.803                    0.820                         the validation set and test set remain unaltered. The training set and test
+   Noise                                                                              set have a batch size of 200 and an epoch number of 300. Utilizing a two-
+  DCGAN          0.738         0.814                    0.831
+  DDPM           0.738         0.842                    0.863
+                                                                                      dimensional convolutional neural network for fault classification, Data 1
+                                                                                      achieves test accuracies of 89.6% and 92.3%, respectively. For Data 2,
+                                                                                      the test accuracies were 84.2% and 86.3%, respectively. The test results
+the training to enhance the effect of generative networks (Luo et al.,                of the original data and the augmented data are shown in Table 6, and
+2021). DCGAN takes 40 vibration images from the original training set                 confusion matrices are shown in Fig. 12.
+as input. The feature map size in both the Generator and Discriminator is
+set to 64, with training epochs totaling 10,000. The learning rate for                4. Conclusions
+optimizers is set at 0.0005, and the hyperparameters for Adam opti­
+mizers is 0.5. The deconvolutional structure of the Generator is outlined                 In this paper, we present a method for enhancing data utilizing a
+in Table 3, while the deconvolutional structure of the Discriminator is               diffusion model to aid in the diagnosis of bearing faults in scenarios with
+presented in Table 4.                                                                 limited sample availability. We begin by elucidating the foundational
+    An additional 40 and 80 new images are generated and incorporated                 principles of denoising diffusion probabilistic models. Following this, we
+into the original 40 motion images, forming 2 new training sets, while                detail the process of the proposed methodology, where vibration signals
+the validation set and test set remain unaltered. The training set and test
+
+                                                                                 10
+P. Zhao et al.                                                                                              Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+
+
+
+                                                   Fig. 13. Comparison of 3 methods on Paderborn dataset.
+
+
+undergo conversion into image signals via continuous wavelet trans­                  sample generation speeds, although these issues may be addressed with
+form. This conversion facilitates the creation of novel samples for data             future advancements.
+augmentation utilizing the diffusion model. Experiments conducted on                     Future research on data augmentation in fault diagnosis will likely
+the CWRU and Paderborn datasets led to two conclusions.                              focus on generating more realistic synthetic fault data, improving
+                                                                                     generalization across different machines. This includes integrating
+1. The diffusion model demonstrates the capability to generate high-                 physics-based models with machine learning, enhancing transfer
+   quality images with features akin to the original samples. It accu­               learning for cross-domain applications, and using reinforcement
+   rately produces fault data wavelet image samples, especially bene­                learning to create dynamic augmentation strategies. Additionally,
+   ficial under conditions of a small sample database, effectively                   explainable AI could boost the reliability of augmented data. Other so­
+   expanding and enhancing the dataset. In the Case Western Reserve                  lutions to the scarcity of faulty data include Few-Shot Learning, Semi-
+   University bearing dataset, data augmentation using the diffusion                 Supervised Learning, Anomaly Detection, and Transfer Learning (Yang
+   model achieved an accuracy of 87.6%, notably surpassing the 74%                   et al., 2024c), which can reduce the need for large labeled datasets.
+   accuracy of the original samples.
+2. Upon comparing and validating the Paderborn University bearing                    CRediT authorship contribution statement
+   dataset, it becomes evident that the wavelet image samples gener­
+   ated through the diffusion model exhibit high authenticity. The ac­                 Pengcheng Zhao: Formal analysis, Data curation. Wei Zhang:
+   curacy rates of Data 1 reached 89.6% and 92.3% respectively for the               Methodology. Xiaoshan Cao: Investigation. Xiang Li: Resources,
+   addition of 40 and 80 samples, while Data 2 achieved accuracy rates               Methodology.
+   of 84.2% and 86.3% respectively for the same sample additions,
+   showcasing superior performance compared to data enhancement
+   methods such as adding Gaussian noise and DCGAN. The test results                 Declaration of competing interest
+   of Data 1 and Data 2 are shown in Tables 7 and 8, and the bar chart is
+   depicted in Fig. 13.                                                                  The authors declare that they have no known competing financial
+                                                                                     interests or personal relationships that could have appeared to influence
+    Diffusion models generate data by progressively adding and                       the work reported in this paper.
+removing noise in a controlled manner, enabling them to learn complex
+data distributions in detail. This results in high-quality, realistic samples        Acknowledgement
+that more accurately reflect the variability of real-world data compared
+to conventional augmentation techniques like flipping, rotation, or                     The material in this paper is based on work supported by grant
+adding simple noise. They can produce a wide range of data variations,               (HKZY20220429) from Ministry of Education of China, and grant
+including subtle changes difficult to achieve with traditional methods.              (52475125) from National Natural Science Foundation of China.
+This diversity enhances the robustness and generalization of machine
+learning models trained on augmented data. Additionally, diffusion                   Data availability
+models excel at denoising, making them particularly effective in sce­
+narios with noisy or incomplete data. This capability not only produces                  Data will be made available on request.
+clean and accurate samples but also improves model performance in
+noisy environments, where traditional augmentation methods often fall
+                                                                                     References
+short.
+    Overall, using Denoising Diffusion Probabilistic Models (DDPM) for               Aydin, I., Karaköse, M., Akin, E., 2015. Combined intelligent methods based on wireless
+data augmentation has both advantages and disadvantages. DDPM ex­                        sensor networks for condition monitoring and fault diagnosis. J. Intell. Manuf. 26
+                                                                                         (4), 717–729. https://doi.org/10.1007/s10845-013-0829-8.
+cels in training stability, sample quality, mode coverage, and robustness
+                                                                                     Balshaw, R., Heyns, P.S., Wilke, D.N., Schmidt, S., 2024. Temporally-preserving latent
+to noisy data compared to DCGAN and adding Gaussian noise methods,                       variable models: offline and online training for reconstruction and interpretation of
+resulting in superior data augmentation outcomes. However, the orig­                     fault data for gearbox condition monitoring. J. Dynam., Monitor. Diagn.
+inal diffusion model faces challenges in generating high-quality one-                Bin, G.F., Gao, J.J., Li, X.J., Dhillon, B.S., 2012. Early fault diagnosis of rotating
+                                                                                         machinery based on wavelet packets-Empirical mode decomposition feature
+dimensional time-series data, leading us to use two-dimensional images                   extraction and neural network. Mech. Syst. Signal Process. 27, 696–711. https://doi.
+as model inputs, which adds complexity to the process. Additionally,                     org/10.1016/j.ymssp.2011.08.002.
+DDPM requires substantial computational resources and has slower                     Chen, X.H., Cheng, G., Shan, X.L., Hu, X., Guo, Q., Liu, H.G., 2015. Research of weak
+                                                                                         fault feature information extraction of planetary gear based on ensemble empirical
+
+
+                                                                                11
+P. Zhao et al.                                                                                                              Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+     mode decomposition and adaptive stochastic resonance. Measurement 73, 55–67.                   Luo, J., Huang, J.Y., Li, H.M., 2021. A case study of conditional deep convolutional
+     https://doi.org/10.1016/j.measurement.2015.05.007.                                                  generative adversarial networks in machine fault diagnosis. J. Intell. Manuf. 32 (2),
+Chen, J.L., et al., 2016. Wavelet transform based on inner product in fault diagnosis of                 407–425. https://doi.org/10.1007/s10845-020-01579-w.
+     rotating machinery: a review. Mech. Syst. Signal Process. 70–71, 1–35. https://doi.            Ma, M., Sun, C., Chen, X.F., 2018. Deep coupling autoencoder for fault diagnosis with
+     org/10.1016/j.ymssp.2015.08.023.                                                                    multimodal sensory data. IEEE Trans. Ind. Inf. 14 (3), 1137–1145. https://doi.org/
+Chen, P., Xu, C.J., Ma, Z.G., Jin, Y.Q., 2023. A mixed samples-driven methodology based                  10.1109/tii.2018.2793246.
+     on denoising diffusion probabilistic model for identifying damage in carbon fiber              Meng, Q.Y., Shi, W.X., Li, S.J., Zhang, L.L., 2023. PanDiff: a novel pansharpening method
+     composite structures. IEEE Trans. Instrum. Meas. 72. https://doi.org/10.1109/                       based on denoising diffusion probabilistic model. IEEE Trans. Geosci. Rem. Sens. 61.
+     tim.2023.3267522. Art no. 3513411.                                                                  https://doi.org/10.1109/tgrs.2023.3279864. Art no. 5611317.
+Chen, H.L., Wei, J.A., Huang, H.S., Wen, L., Yuan, Y.G., Wu, J.X., 2024. Novel                      Natsumeda, M., Yairi, T., 2024. Feature selection with partial autoencoding for zero-
+     imbalanced fault diagnosis method based on generative adversarial networks with                     sample fault diagnosis. IEEE Trans. Ind. Inf. 20 (2), 2144–2153. https://doi.org/
+     balancing serial CNN and Transformer (BCTGAN). Expert Syst. Appl. 258, 125171.                      10.1109/tii.2023.3286882.
+     https://doi.org/10.1016/j.eswa.2024.125171.                                                    Peng, C., Sheng, Y.Y., Gui, W.H., Tang, Z.H., Li, C.Y., 2024. A rolling bearing fault
+Croitoru, F.A., Hondru, V., Ionescu, R.T., Shah, M., 2023. Diffusion models in vision: a                 diagnosis method based on multimodal knowledge graph. IEEE Trans. Ind. Inf.
+     survey. IEEE Trans. Pattern Anal. Mach. Intell. 45 (9), 10850–10869. https://doi.                   https://doi.org/10.1109/tii.2024.3431074.
+     org/10.1109/tpami.2023.3261988.                                                                Perera, M.V., Nair, N.G., Bandara, W.G.C., Patel, V.M., 2023. SAR despeckling using a
+Fan, S.T., Zhang, X.M., Song, Z.H., 2022. Imbalanced sample selection with deep                          denoising diffusion probabilistic model. Geosci. Rem. Sens. Lett. IEEE 20, 4005305.
+     reinforcement learning for fault diagnosis. IEEE Trans. Ind. Inf. 18 (4), 2518–2527.                https://doi.org/10.1109/lgrs.2023.3270799.
+     https://doi.org/10.1109/tii.2021.3100284.                                                      Qiang, X., Liu, W., Lyu, Z., Ruan, H., Li, X., 2024. A data-fusion-model method for state of
+Guan, M.S., et al., 2024. DiffWater: underwater image enhancement based on conditional                   health estimation of Li-ion battery packs based on partial charging curve. Green
+     denoising diffusion probabilistic model. IEEE J. Sel. Top. Appl. Earth Obs. Rem. Sens.              Energy Intell. Transport. 3 (5), 100169.
+     17, 2319–2335. https://doi.org/10.1109/jstars.2023.3344453.                                    Ragab, A., Ouali, M.S., Yacout, S., Osman, H., 2016. Remaining useful life prediction
+He, G.C., Chen, Y.N., Li, Z., Fang, G.H., Zhu, J.Y., Liang, W.T., 2024. Exploring denoising              using prognostic methodology based on logical analysis of data and Kaplan-Meier
+     diffusion probabilistic model for daily streamflow gap filling in Central Asia typical              estimation. J. Intell. Manuf. 27 (5), 943–958. https://doi.org/10.1007/s10845-014-
+     watersheds. J. Hydrol.-Reg. Stud. 52, 101701. https://doi.org/10.1016/j.                            0926-3.
+     ejrh.2024.101701.                                                                              Shao, H.D., Xia, M., Han, G.J., Zhang, Y., Wan, J.F., 2021. Intelligent Fault diagnosis of
+Hendriks, J., Dumond, P., Knox, D.A., 2022. Towards better benchmarking using the                        rotor-bearing system under varying working conditions with modified transfer
+     CWRU bearing fault dataset. Mech. Syst. Signal Process. 169, 108732. https://doi.                   convolutional neural network and thermal images. IEEE Trans. Ind. Inf. 17 (5),
+     org/10.1016/j.ymssp.2021.108732.                                                                    3488–3496. https://doi.org/10.1109/tii.2020.3005965.
+Ho, J., Jain, A., Abbeel, P., 2020. Denoising diffusion probabilistic models. Presented at          Shen, G.J., McLaughlin, S., Xu, Y.C., White, P., 2014. Theoretical and experimental
+     the Proceedings of the 34th International Conference on Neural Information                          analysis of bispectrum of vibration signals for fault diagnosis of gears. Mech. Syst.
+     Processing Systems.                                                                                 Signal Process. 43 (1–2), 76–89. https://doi.org/10.1016/j.ymssp.2013.08.023.
+Huo, C.R., Jiang, Q.S., Shen, Y.H., Zhu, Q.X., Zhang, Q.K., 2023. Enhanced transfer                 Shen, C.X., Zhang, H.Y., Meng, S.P., Li, C.D., 2023. Augmented data driven self-attention
+     learning method for rolling bearing fault diagnosis based on linear superposition                   deep learning method for imbalanced fault diagnosis of the HVAC chiller. Eng. Appl.
+     network. Eng. Appl. Artif. Intell. 121, 105970. https://doi.org/10.1016/j.                          Artif. Intell. 117, 105540. https://doi.org/10.1016/j.engappai.2022.105540.
+     engappai.2023.105970.                                                                          Shi, H., Miao, Y., Li, C., Gu, X., 2024. A novel bearing intelligent fault diagnosis method
+Jian, C.X., Peng, Y.H., Mo, G.P., Chen, H., 2024. Open-set domain generalization for fault               based on spectrum sparse deep deconvolution. Eng. Appl. Artif. Intell. 133, 108102.
+     diagnosis through data augmentation and a dual-level weighted mechanism. Adv.                       https://doi.org/10.1016/j.engappai.2024.108102, 2024/07/01/.
+     Eng. Inf. 62, 102703. https://doi.org/10.1016/j.aei.2024.102703.                               Song, L.Y., Jin, Y., Lin, T.J., Zhao, S.K., Wei, Z.C., Wang, H.Q., 2024. Remaining useful
+Kazerouni, A., et al., 2023. Diffusion models in medical imaging: a comprehensive                        life prediction method based on the spatiotemporal graph and GCN nested parallel
+     survey. Med. Image Anal. 88, 102846. https://doi.org/10.1016/j.                                     route model. IEEE Trans. Instrum. Meas. 73. https://doi.org/10.1109/
+     media.2023.102846.                                                                                  tim.2024.3370801. Art no. 3511912.
+Kim, H., Lee, S., Lee, J., Lee, W., Son, Y., 2024. Evaluating practical adversarial                 Tang, S., Ma, J., Yan, Z., Zhu, Y., Khoo, B.C., 2024. Deep transfer learning strategy in
+     robustness of fault diagnosis systems via spectrogram-aware ensemble method. Eng.                   intelligent fault diagnosis of rotating machinery. Eng. Appl. Artif. Intell. 134,
+     Appl. Artif. Intell. 130, 107980. https://doi.org/10.1016/j.engappai.2024.107980.                   108678. https://doi.org/10.1016/j.engappai.2024.108678.
+Li, H.K., Lian, X.T., Guo, C., Zhao, P.S., 2015. Investigation on early fault classification        Tao, H.J., 2024. Erasing-inpainting-based data augmentation using denoising diffusion
+     for rolling element bearing based on the optimal frequency band determination.                      probabilistic models with limited samples for generalized surface defect inspection.
+     J. Intell. Manuf. 26 (1), 189–198. https://doi.org/10.1007/s10845-013-0772-8.                       Mech. Syst. Signal Process. 208, 111082. https://doi.org/10.1016/j.
+Li, X., Zhang, W., Ding, Q., Sun, J.Q., 2020. Intelligent rotating machinery fault diagnosis             ymssp.2023.111082.
+     based on deep learning using data augmentation. J. Intell. Manuf. 31 (2), 433–452.             Tian, Z.G., 2012. An artificial neural network method for remaining useful life prediction
+     https://doi.org/10.1007/s10845-018-1456-1.                                                          of equipment subject to condition monitoring. J. Intell. Manuf. 23 (2), 227–237.
+Li, Y.B., Wang, S., Deng, Z.C., 2021. Intelligent fault identification of rotary machinery               https://doi.org/10.1007/s10845-009-0356-9.
+     using refined composite multi-scale Lempel-Ziv complexity. J. Manuf. Syst. 61,                 Wang, C., Gan, M., Zhu, C.A., 2017. Intelligent fault diagnosis of rolling element bearings
+     725–735. https://doi.org/10.1016/j.jmsy.2020.05.004.                                                using sparse wavelet energy based on overcomplete DWT and basis pursuit. J. Intell.
+Li, W., Zhong, X., Shao, H.D., Cai, B.P., Yang, X.K., 2022. Multi-mode data augmentation                 Manuf. 28 (6), 1377–1391. https://doi.org/10.1007/s10845-015-1056-2.
+     and fault diagnosis of rotating machinery using modified ACGAN designed with new               Wang, C., Gan, M., Zhu, C.A., 2019. A supervised sparsity-based wavelet feature for
+     framework. Adv. Eng. Inf. 52, 101552. https://doi.org/10.1016/j.aei.2022.101552.                    bearing fault diagnosis. J. Intell. Manuf. 30 (1), 229–239. https://doi.org/10.1007/
+Li, J.L., Cao, X., Chen, R.X., Zhang, X., Huang, X.Z., Qu, Y.Z., 2023a. Graph neural                     s10845-016-1243-9.
+     network architecture search for rotating machinery fault diagnosis based on                    Wang, X., Jiang, H.K., Wu, Z.H., Yang, Q., 2023. Adaptive variational autoencoding
+     reinforcement learning. Mech. Syst. Signal Process. 202, 110701. https://doi.org/                   generative adversarial networks for rolling bearing fault diagnosis. Adv. Eng. Inf. 56,
+     10.1016/j.ymssp.2023.110701.                                                                        102027. https://doi.org/10.1016/j.aei.2023.102027.
+Li, X., Zhang, C., Li, X., Zhang, W., 2023b. Federated transfer learning in fault diagnosis         Wang, Q., Liu, N., Wang, J., Yin, L., Yang, S., Huang, N., 2024. A zero-sample intelligent
+     under data privacy with target self-adaptation. J. Manuf. Syst. 68, 523–535. https://               fault diagnosis method for bearings based on category relationship model. Eng. Appl.
+     doi.org/10.1016/j.jmsy.2023.05.006.                                                                 Artif. Intell. 130, 107739. https://doi.org/10.1016/j.engappai.2023.107739, 2024/
+Li, X., Yu, S., Lei, Y., Li, N., Yang, B., 2024a. Dynamic vision-based machinery fault                   04/01/.
+     diagnosis with cross-modality feature alignment. IEEE/CAA J. Automat. Sin. 11 (10),            Wu, C.X., Chen, T.F., Jiang, R., Ning, L.W., Jiang, Z., 2017. A novel approach to wavelet
+     2068–2081. https://doi.org/10.1109/JAS.2024.124470.                                                 selection and tree kernel construction for diagnosis of rolling element bearing fault.
+Li, X., Zhang, W., Li, X., Hao, H.S., 2024b. Partial domain adaptation in remaining useful               J. Intell. Manuf. 28 (8), 1847–1858. https://doi.org/10.1007/s10845-015-1070-4.
+     life prediction with incomplete target data. Ieee-Asme Transac. Mechatron. 29 (3),             Yang, B.S., Di, X., Han, T., 2008. Random forests classifier for machine fault diagnosis.
+     1903–1913. https://doi.org/10.1109/tmech.2023.3325538.                                              J. Mech. Sci. Technol. 22 (9), 1716–1725. https://doi.org/10.1007/s12206-008-
+Li, W.H., et al., 2024c. Fault diagnosis using variational autoencoder GAN and focal loss                0603-6.
+     CNN under unbalanced data. Struct. Health Monitor. Int. J. https://doi.org/                    Yang, X., Yuan, X., Dong, L., Mei, X., Chen, K., 2024a. Manifold assistant multi-modal
+     10.1177/14759217241254121.                                                                          multi-objective differential evolution algorithm and its application in actual rolling
+Liu, Z.Q., Cao, Y.W., Wang, Y.Z., Wang, W., 2019. Computer vision-based concrete crack                   bearing fault diagnosis. Eng. Appl. Artif. Intell. 133, 108040. https://doi.org/
+     detection using U-net fully convolutional networks. Autom. ConStruct. 104,                          10.1016/j.engappai.2024.108040, 2024/07/01/.
+     129–139. https://doi.org/10.1016/j.autcon.2019.04.005.                                         Yang, S., Ling, L., Li, X., Han, J., Tong, S., 2024b. Industrial battery state-of-health
+Liu, Z.X., Ma, C.W., She, W.J., Xie, M.L., 2024. Biomedical image segmentation using                     estimation with incomplete limited data towards second-life applications. J. Dynam.,
+     denoising diffusion probabilistic models: a comprehensive review and analysis. Appl.                Monitor. Diagn. https://doi.org/10.37965/jdmd.2024.562.
+     Sci.-Basel 14 (2). https://doi.org/10.3390/app14020632. Art no. 632.                           Yang, B., Lei, Y.G., Li, X., Li, N.P., 2024c. Targeted transfer learning through distribution
+Lu, N., Hu, H.Y., Yin, T., Lei, Y.G., Wang, S.H., 2022. Transfer relation network for fault              barycenter medium for intelligent fault diagnosis of machines with data
+     diagnosis of rotating machinery with small data. IEEE Trans. Cybern. 52 (11),                       decentralization. Expert Syst. Appl. 244. https://doi.org/10.1016/j.
+     11927–11941. https://doi.org/10.1109/tcyb.2021.3085476.                                             eswa.2023.122997. Art no. 122997.
+Lu, S.Q., Guan, F.X., Zhang, H.Y., Lai, H.T., 2023. Underwater image enhancement                    Zhang, L., Hu, N.Q., 2019. Fault diagnosis of sun gear based on continuous vibration
+     method based on denoising diffusion probabilistic model. J. Vis. Commun. Image                      separation and minimum entropy deconvolution. Measurement 141, 332–344.
+     Represent. 96, 103926. https://doi.org/10.1016/j.jvcir.2023.103926.                                 https://doi.org/10.1016/j.measurement.2019.04.049.
+
+
+
+
+                                                                                               12
+P. Zhao et al.                                                                                                          Engineering Applications of Arti cial Intelligence 139 (2025) 109520
+
+Zhang, Z.Y., Wang, Y., Wang, K.S., 2013. Fault diagnosis and prognosis using wavelet             Zhang, Y.C., Ding, J.L., Li, Y.B., Ren, Z.H., Feng, K., 2024. Multi-modal data cross-
+   packet decomposition, Fourier transform and artificial neural network. J. Intell.                domain fusion network for gearbox fault diagnosis under variable operating
+   Manuf. 24 (6), 1213–1227. https://doi.org/10.1007/s10845-012-0657-2.                             conditions. Eng. Appl. Artif. Intell. 133, 108236. https://doi.org/10.1016/j.
+Zhang, X.Y., Liang, Y.T., Zhou, J.Z., Zang, Y., 2015. A novel bearing fault diagnosis               engappai.2024.108236.
+   model integrated permutation entropy, ensemble empirical mode decomposition and               Zhao, L., Chen, Y., 2024. Dynamics and fault diagnosis of railway vehicle gearboxes: a
+   optimized SVM. Measurement 69, 164–179. https://doi.org/10.1016/j.                               review. J. Dynam., Monitor. Diagn. 3 (2), 83–98. https://doi.org/10.37965/
+   measurement.2015.03.017.                                                                         jdmd.2024.518.
+Zhang, T.C., Chen, J.L., He, S.L., Zhou, Z.T., 2022. Prior knowledge-augmented self-             Zheng, X.Y., Yang, P.X., Yan, K., He, Y.Z., Yu, Q.J., Li, M.Y., 2024. Rolling bearing fault
+   supervised feature learning for few-shot intelligent fault diagnosis of machines. IEEE           diagnosis based on multiple wavelet coefficient dimensionality reduction and
+   Trans. Ind. Electron. 69 (10), 10573–10584. https://doi.org/10.1109/                             improved residual network. Eng. Appl. Artif. Intell. 133, 108087. https://doi.org/
+   tie.2022.3140403.                                                                                10.1016/j.engappai.2024.108087.
+Zhang, C., Jiang, D.F., Jiang, K.H., Jiang, B.Y., 2023. A hierarchical multivariate              Zhou, Q., Yan, P., Liu, H.Y., Xin, Y., 2019. A hybrid fault diagnosis method for
+   denoising diffusion model. Inf. Sci. 648, 119623. https://doi.org/10.1016/j.                     mechanical components based on ontology and signal analysis. J. Intell. Manuf. 30
+   ins.2023.119623.                                                                                 (4), 1693–1715. https://doi.org/10.1007/s10845-017-1351-1 (in English).
+
+
+
+
+                                                                                            13
+

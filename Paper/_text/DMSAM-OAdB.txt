@@ -1,0 +1,579 @@
+      IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 75, 2026                                                                                      3501608
+
+
+
+
+       New Attention Ensemble-Based Fault Diagnosis for
+       Industrial Processes Under Imbalanced Finite Data
+                                                             Yaoqian Zhu           and Ridong Zhang
+
+
+         Abstract—During industrial processes operation, fault diagno-                  network extracts and integrates multiscale and multilevel fault
+      sis needs to rely on finite and imbalanced samples for learning                   features using convolution kernels of different sizes, which
+      because the equipment is usually in a normal operation state                      enables intelligent fault diagnosis for bearings. Liu et al. [3]
+      and the probability of faults is low. For this issue, we propose
+      a new attention ensemble algorithm, DMSAM-OAdB. First,                            proposed a model fusion framework using multiscale residual
+      the multiscale sparse attention module (MSAM) extracts and                        CNN and LSTM, which effectively extracts multiscale features
+      fuses feature information from different scales to establish the                  and temporal information from industrial process data and
+      correlation among features and adaptively adjusts the feature                     achieves higher accuracy. Fault diagnosis is essentially a
+      weights by soft thresholding operation to emphasize the critical                  pattern classification issue, so the first task is to extract rich
+      features while filtering the redundant information. Subsequently,
+      a deep network model (DMSAM) constructed by stacking multi-                       key information from the input signal. In recent years, the
+      ple convolutional layers and MSAMs is iteratively trained as the                  attention mechanism has also gained popularity due to its
+      base classifier for the optimized AdaBoost algorithm (OAdB). The                  advantages of extracting global information and rationally allo-
+      OAdB dynamically increases the weights of misclassified samples                   cating resources. Some notable results have been achieved by
+      while mitigating class imbalance by randomly zeroing out the                      introducing it to enhance fault classification ability. Wan et al.
+      weights of a certain number of correctly classified majority
+      class samples. Finally, the improved focal loss (IFL) function                    [4] developed a novel multisensor feature-level information
+      enhances the model’s discrimination capability for minority class                 coupling model for bearing fault diagnosis using the mutual
+      samples. Experiments on the industrial coking furnace validate                    attention mechanism, which allows each layer of the feature
+      the reliability and superiority of the proposed methodology.                      extraction module to comprehensively analyze the coupling
+         Index Terms—AdaBoost, attention mechanism, fault diagnosis,                    relationship between representative features in multisensor
+      loss function, multiscale network.                                                data. Wei et al. [5] proposed a target Transformer model that
+                                                                                        employs a target attention mechanism to effectively capture the
+                                 I. I NTRODUCTION                                       long-term dependency characteristics of chemical processes
+                                                                                        and significantly improves the accuracy.
+      I   N INDUSTRIAL processes, factors such as aging and wear
+          of parts, leakage and clogging of pumps, and changes in
+      ambient temperature and humidity inevitably affect the system
+                                                                                           While deep learning has significantly promoted intelligent
+                                                                                        fault diagnosis, it also brings new challenges. Deep neural
+      operation and lead to malfunctions. Therefore, leveraging                         network models rely on a large amount of historical data and
+      intelligent fault diagnosis to accurately determine the type of                   often assume that the data distribution is balanced. However,
+      faults is of great significance in enhancing the reliability and                  industrial processes are mostly in the normal operating state
+      ensuring production safety [1].                                                   with faults occurring infrequently. As a result, the number of
+         Traditional fault diagnosis methods based on physical mod-                     fault samples collected is extremely finite and significantly
+      els, statistical process control, and process signal analysis                     smaller than the normal samples. Additionally, attention-
+      usually rely on assumptions and domain expertise, which                           based models, particularly pure attention architectures such
+      are insufficient to cope with complex challenges posed by                         as Transformers, often require large-scale data to improve
+      modern industry. Consequently, data-driven methods based on                       the model’s classification and generalization capabilities, as
+      deep learning, such as convolutional neural networks (CNNs),                      they are different from models like CNN that inherently
+      recurrent neural networks (RNNs), and deep auto encoders                          incorporate inductive biases such as local invariance and
+      (DAEs), have gained significant attention by virtue of their                      translational equivariance. Inductive bias can be understood
+      ability to extract fault features, adapt to diversified fault modes,              as the introduction of certain rules or assumptions to impose
+      and reduce reliance on expert knowledge. For instance, Ye                         certain constraints on model selection, which is similar to
+      and Ju [2] proposed a multilevel feature fusion network using                     a kind of priori information [6]. When faced with finite or
+      multiscale convolution and dynamic feature selection. This                        imbalanced datasets, insufficient inductive bias may impair the
+                                                                                        model’s ability to learn effective patterns, potentially leading
+        Received 19 February 2025; revised 21 April 2025; accepted 9 May 2025.          to classification bias, the tendency to favor majority classes
+      Date of current version 16 January 2026. The Associate Editor coordinating        and the neglect of minority class features, thereby reducing
+      the review process was Dr. Pedro Oliveira Conceca. (Corresponding author:
+      Ridong Zhang.)                                                                    the classification accuracy for minority faults. To address
+        The authors are with the Information and Control Institute, Hangzhou            these issues, we integrate CNN with attention mechanisms to
+      Dianzi University, Hangzhou 310018, China (e-mail: gz9513@163.com;
+      zhangridong@hdu.edu.cn).
+                                                                                        introduce inductive bias, thereby reducing the impact of finite
+        Digital Object Identifier 10.1109/TIM.2025.3575980                              and imbalanced data.
+                    1557-9662 © 2025 IEEE. All rights reserved, including rights for text and data mining, and training of artificial intelligence and
+                              similar technologies. Personal use is permitted, but republication/redistribution requires IEEE permission.
+                                            See https://www.ieee.org/publications/rights/index.html for more information.
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      3501608                                                                     IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 75, 2026
+
+
+
+         Within complex industrial environments, process data are
+      often accompanied by redundant information. For this reason,
+      Jiang et al. [7] proposed the digital twin auxiliary adaptive
+      sparse attention network using soft thresholding to dynam-
+      ically filter redundant sequences. Zhang et al. [8] designed
+      a 2-D sparse low-rank model to extract the sparsity and
+      periodic self-similarity within groups in bearing fault signals.
+      However, these methods generally rely on sufficient data to
+      train the network and fail to consider the scarcity of fault
+      samples in real industrial processes. Moreover, most of them
+      adopt single-scale CNNs for feature extraction, overlooking
+      the variations in fault pattern characteristics across different
+      spatial and temporal scales.                                                      Fig. 1. DMSAM-OAdB model framework diagram.
+         In the field of industrial fault diagnosis, methods for dealing
+      with data imbalance can be broadly categorized into two
+                                                                                        article proposes an improved attention ensemble algorithm,
+      main types: one is the adjustment of the data itself, such
+                                                                                        DMSAM-OAdB, to accurately identify and classify finite and
+      as oversampling to augment the number of minority class
+                                                                                        imbalanced fault samples. The overall framework of DMSAM-
+      samples [9] and undersampling to remove majority class
+                                                                                        OAdB is shown in Fig. 1.
+      samples [10]; the other is the design at the algorithm level,
+      such as cost-sensitive learning [11] and ensemble learning
+      [12]. Duan et al. [13] proposed an improved SMOTE algorithm                       A. Multiscale Sparse Attention Module
+      that addresses class imbalance in mechanical fault diagnosis by                      The operating status of the systems can be affected by many
+      generating new minority class samples using the combination                       factors, including internal temperature, pressure, flow rate and
+      of geometric centers and average radii of existing samples.                       external ambient interference. These factors can result in dis-
+      Zhou et al. [14] employed a hybrid sampling strategy that                         tinct fault patterns across different spatial and temporal scales
+      integrates random sampling with SMOTE to balance the                              [15]. This also implies that single-scale convolution operations
+      number of samples across different fault categories. However,                     are insufficient to fully extract all fault-related information.
+      these data-level methods directly operate on raw data, which                      Generally, larger scales can generate a smoother representation
+      may cause information loss or introduce noise. In contrast, the                   for capturing low-frequency information, while small scales
+      algorithmic-level approach can focus on minority class sam-                       offer a higher detail resolution ability and highlight changes in
+      ples more effectively by introducing an adjustment mechanism                      high-frequency features [16]. Therefore, we adopt a multiscale
+      to balance the class weights while avoiding overalteration of                     mechanism by constructing convolution layers of different
+      the majority class samples and is therefore more relevant to                      sizes in parallel to comprehensively capture and analyze fault
+      real-world application needs.                                                     features. Initially, the input feature map Xin ∈ Rh×w×ch passes
+         To address the above problems, this article proposes a                         through a 1 × 1 convolutional layer to achieve information
+      new attention ensemble algorithm for fault diagnosis under                        integration and feature dimensionality reduction, where h, w,
+      conditions of limited and unbalanced samples in industrial                        and ch represent the length, width, and number of channels of
+      processes. The main contributions are as follows.                                 the input feature map, respectively. Then, m convolution kernel
+         1) A new multiscale sparse attention module (MSAM)                             groups K1 , K2 , . . . , Km of different sizes are used to extract
+             that establishes and integrates long-range dependencies                    multiscale features from the output feature map after dimen-
+             and local feature relationships for feature mapping at                     sionality reduction. Each convolution kernel group Km has n
+             different scales is proposed. Also, an adaptive soft-                      convolution kernels, i.e., Km = [Km1 , Km2 , . . . , Kmn ], Kmn ∈ R sm ×1 ,
+             thresholding operation is introduced to filter the attention               where sm represents the convolution kernel size. The specific
+             weight sequence while removing the redundant informa-                      process is expressed as follows:
+             tion interference and focusing more on critical features.                                            Ũ = K 1×1 ∗ Xin                                 (1)
+         2) An improved focus function is designed to enhance the
+                                                                                                                Umn = Kmn ∗ Ũ                                     (2)
+             model’s ability to distinguish between minority class
+                                                                                                                Um = Um1 , Um2 , . . . , Umn
+                                                                                                                                            
+             samples and fuzzy area samples.                                                                                                                       (3)
+         3) The optimized AdaBoost algorithm (OAdB) is intro-                                                         X m
+
+             duced, which not only focuses more on misclassified                                                 Û =     Ui                                       (4)
+             samples but also reduces the influence of redundant                                                        i=1
+
+             information in the majority class by randomly setting a                    where Ũ represents the output of the 1 × 1 convolution
+             certain proportion of correctly classified majority class                  layer, K 1×1 represents the convolution kernel of the 1 × 1
+             sample weights to zero during each iteration.                              convolution layer, ∗ represents the convolution operation, Um
+                                                                                        represents the convolution output of the convolution kernel
+                             II. P ROPOSED M ETHOD                                                                                   0  0
+                                                                                        group of the corresponding size, and Û ∈ Rh ×w ×n represents
+        Considering the difficulty in obtaining a large num-                            the fused feature obtained by adding the convolution outputs
+      ber of fault samples in actual industrial operation, this                         of each scale.
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      ZHU AND ZHANG: NEW ATTENTION ENSEMBLE-BASED FAULT DIAGNOSIS FOR INDUSTRIAL PROCESSES                                                                     3501608
+
+
+                                                                                                                        1
+                                                                                                                   =                   .          (8)
+                                                                                                                1 + e−SoftThresh(Û;τ)
+                                                                                           Finally, the weights corresponding to the feature maps of
+                                                                                        each scale are fused with the original feature maps to obtain
+                                                                                        the output features V of the MSAM, where ⊗ represents the
+                                                                                        element-by-element multiplication
+                                                                                                                   V = [V1 , V2 , . . . , Vm ]                     (9)
+                                                                                                                  Vm = Um ⊗ Am .                                 (10)
+
+                                                                                        B. Optimized AdaBoost Algorithm
+                                                                                           The ensemble learning can be divided into two categories:
+      Fig. 2. MSAM structure.                                                           parallelization methods and serialization methods. In paral-
+                                                                                        lelization methods, the base classifiers are independent of
+                                                                                        others and have no significant dependencies. Therefore, they
+         Given the varying importance of information at different                       can be generated and trained in parallel. Comparatively, the
+      scales and the impact of redundant information on model                           base classifiers in the serialization methods have strong depen-
+      robustness, we adopt a soft thresholding dynamic selection                        dencies and the subsequent classifiers are usually generated
+      attention mechanism so that the model can adaptively adjust                       by adjusting the results of the previous classifier. When a
+      the contribution of feature maps at different scales after                        base classifier misjudges a data sample, the remaining base
+      enhancing the precision of feature selection. The specific                        classifiers can correct it. This mechanism not only improves
+      definition of the soft threshold function is shown in (5),                        the performance of the overall model but also effectively
+      where x is the input feature, τ represents the threshold, and                     reduces the possibility of overfitting, thereby enhancing the
+      SoftThresh(;) represents the output map after soft thresholding.                  reliability and stability of the model [18], [19].
+      By setting different τ values, the soft thresholding operation                       AdaBoost is a classic implementation of the typical serial-
+      can compress features within a specific range to zero values                      ization algorithm boosting with the advantage of adaptively
+      [17]. This article adaptively adjusts the threshold through the                   adjusting sample weights. For updating sample weights, it
+      deep model architecture                                                           increases the weights of misclassified samples and reduces
+                                     8                                                  the weights of correctly classified samples. Through this step-
+                                     < x − τ, x > τ
+                                     ˆ                                                  by-step optimization, the model can more accurately identify
+                 SoftThresh(x; τ) = 0,         −τ ≤ x ≤ τ          (5)                  challenging samples. When assigning base classifier weights,
+                                       x + τ, x < −τ.                                   the weights assigned to each classifier are inversely propor-
+                                     ˆ
+                                     :
+                                                                                        tional to its classification error rate. The classifier with a
+         The complete MSAM structure is shown in Fig. 2. As shown                       lower error rate contributes more to the final decision. Finally,
+      in the bottom part of Fig. 2, the fused multiscale features are                   through the weighted fusion method, AdaBoost integrates
+      compressed into a 1-D vector after absolute value operation                       multiple base classifiers into a strong classifier. Inspired by
+      and global average pooling (GAP) layer processing and passed                      the BalanceCascade algorithm [20] that gradually reduces
+      to two fully connected (FC) layers.                                               the majority class samples predicted correctly to balance the
+         The output of the FC layers is scaled to the range of (0, 1)                   training set, we add this zeroing mechanism to AdaBoost to
+      as follows:                                                                       optimize it. In each iteration, the OAdB algorithm will zero
+                                       1
+                              ζl =                                (6)                   the weights of the majority class samples that are correctly
+                                    1 + e−zl                                            classified and do not exceed the minimum number of class
+      where zl represents the output map of the lth neuron and ζl                       samples. This further alleviates the class imbalance while
+      denotes the obtained scaling parameter for the lth feature.                       maintaining the integrity of the data distribution and reduces
+      The threshold τ can be obtained by multiplying the scaling                        the excessive dependence of the strong classification model on
+      parameter with the output of the GAP layer                                        the correctly classified samples.
+                                                                                           This article employs a deep network model based on the
+                               τl = ζl · average |xh0 ,w0 ,l |                   (7)    MSAM as the base classifier for the OAdB. The specific
+                                            h0 ,w0
+                                                                                        implementation is as follows.
+      where τl refers to the calculated threshold of the lth channel                       1) Construct a dataset Dtr = {(xi , yi )}i=1
+                                                                                                                                    N
+                                                                                                                                        , where xi represents
+      and h0 , w0 , and l represent the length, width, and channel                      the input data, yi represents the corresponding label, and N
+      index of the input feature map of the GAP layer, respectively.                    represents the number of samples. At the initial stage, each
+      Subsequently, by adaptively extracting information of different                   sample is assigned an equal weight to be considered of the
+      spatial scales, the attention weight matrix A is dynamically                      same importance
+      generated, which is calculated as follows:                                                                            1
+                                                                                                                      Di = .                             (11)
+                                                                                                                            N
+                              A = [A1 , A2 , . . . , Am ]                                  2) During the iterative training of t = 1, 2, . . . , T , the
+                                 = σ(SoftThresh(Û; τ))                                 base classifier ht is trained using the current sample weight
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      3501608                                                                     IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 75, 2026
+
+
+
+      distribution to minimize the classification error as much as
+      possible. The weighted classification error et can be expressed
+      as follows:
+                             N
+                             X
+                        et =    Dt (i)I(ht (xi ) , yi )          (12)
+                                    i=1
+
+      where I() represents the indicator function. If the classification
+      is wrong, I(ht (xi ) , yi ) = 1; otherwise, it is equal to zero. Since
+      industrial fault diagnosis is a multiclassification issue, the                    Fig. 3. OAdB model structure.
+      SAMME.R algorithm is employed to adjust the base classifier
+      weight αt                                                                         and gives a more robust and reliable model. Fig. 3 shows the
+                                 1 1 − et                                               specific structure of the OAdB model.
+                          αt = ln           + ln(R − 1)                 (13)
+                                 2      et
+      where R represents the number of categories. The smaller the                      C. Model Classification and Optimization
+      value of et , the better the performance of base classifier ht ,                     In the classification stage, the FC layer is responsible
+      resulting in a larger assigned weight and a greater contribution                  for integrating the obtained high-dimensional features and
+      to the final prediction result.                                                   mapping them to the category space. Then, the abstract repre-
+         Then, the training sample weight Dt+1 is updated according                     sentation is converted into the probability distribution of each
+      to the performance of each base classifier and normalized                         category by combining the softmax activation function
+                            Dt+1 (i) = Dt (i) · e(−αt ·yi ·ht (xi ))           (14)                                               eFi
+                                                                                                             Pi = softmax(Fi ) = PR                              (18)
+                                            Dt+1 (i)                                                                                      k=1 e
+                                                                                                                                                  Fk
+                            Dt+1 (i) = PN                    .                 (15)
+                                           j=1 Dt+1 ( j)                                where Fi represents the output of the ith neuron in this layer
+         If sample xi is correctly classified (yi = ht (xi )), (14) will                and Pi is the probability of Fi . The predicted fault label y0i
+      reduce its weight; otherwise (yi , ht (xi )), the weight of                       is determined by selecting the category associated with the
+      the sample will be increased. During the learning process                         maximum probability
+      for class-imbalanced tasks, minority class samples are more                                                    y0i = argmax(Pi ).                          (19)
+      likely to be misclassified, leading to a continuous increase in                                                          C
+      their weights through iterations. This mechanism enhances the                        To quantify the difference between model predictions and
+      model’s ability to recognize minority classes and mitigates                       true targets, a loss function is required to guide the gradual
+      the performance degradation caused by imbalanced sample                           adjustment of model parameters. Specifically, deep learn-
+      distributions.                                                                    ing employs the backpropagation algorithm to compute the
+         After obtaining the updated sample weights, a random                           gradients of the loss function and iteratively updates the
+      zeroing mechanism is used to set the weights of a certain                         weight values. This aims to progressively reduce prediction
+      proportion of correctly classified majority class samples Mt                      errors and improve model performance during continuous
+      to zero, Mt = {i|ht (xi ) = yi = ymajority , i ≤ Count(minority)}.                training. In multiclass classification, the cross-entropy (CE)
+      An excessively high proportion of zeroing weighted samples                        loss function is typically used to evaluate the matching degree
+      may lead to insufficient training data, thereby degrading the                     between probability distributions. However, when dealing with
+      learning performance and generalization ability of the base                       imbalanced data samples, the CE function overlooks class
+      learners. Therefore, in each new training round, the weights                      distribution differences, resulting in a bias toward majority
+      of correctly classified majority class samples are set to zero                    class samples and difficulty in recognizing difficult-to-classify
+      at a ratio of 0.1. Moreover, the number of samples with zero                      samples. Therefore, the focal loss function [21] LFL is pro-
+      weight is constrained not to exceed the number of minority                        posed to solve this problem
+      class samples
+                                                                                                   1 X X −β(1 − Pi,c )γ log(Pi,c ),
+                                                                                                       N   C
+                                                                                                              (
+                                                                                                                                             ytrue,i = 1
+                                                                                            LFL =
+                                   (
+                                     0,        i ∈ Mt                                                                    γ
+                        Dt+1 (i) =                                  (16)                           N
+                                                                                                      i=1 c=1
+                                                                                                                −(1 − β)Pi,c log(1 − Pi,c ), ytrue,i = 0.
+                                     Dt+1 (i), else.                                                                                                     (20)
+         Upon completing the predetermined number of iterations,                           To further enhance the model’s sensitivity to the intermedi-
+      the final output H(x) of the DMSAM-OAdB can be expressed                          ate prediction regions, the improved focal loss (IFL) function
+      as                                        !                                       is adopted as the loss function for the DMSAM-OAdB model
+                                     T
+                                     X                                                  as follows:
+                        H (x) = sign   αt ht (x) .          (17)
+                                                                                                                                 γ
+                                                                                                              8
+                                                 t=1
+                                                                                                       N X C ˆ
+                                                                                                              ˆ−β tanh(1 − Pi,c ) log(Pi,c ),
+                                                                                                              ˆ
+        Specifically, the final classification result is obtained by                               1 X        <                           ytrue,i = 1
+                                                                                           LIFL =                                   γ
+      aggregating the predictions of all base classifiers through a                                N          ˆ
+                                                                                                      i=1 c=1 ˆ
+                                                                                                                −(1 − β) tanh(Pi,c ) log(1 − Pi,c ),
+      weighted summation using their assigned weights αt . This
+                                                                                                              ˆ
+                                                                                                                                          ytrue,i = 0.
+                                                                                                              :
+      ensemble approach effectively reduces both bias and variance                                                                                     (21)
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      ZHU AND ZHANG: NEW ATTENTION ENSEMBLE-BASED FAULT DIAGNOSIS FOR INDUSTRIAL PROCESSES                                                                     3501608
+
+
+
+                                     TABLE I
+                   C OKING F URNACE P ROCESS FAULT D ESCRIPTION
+
+
+
+
+         The focal loss function weakens the dominant effect of
+      normal samples through the combined weight adjustment
+      mechanism of the modulation factor (1 − pi )γ and the category
+      weight β, while the tanh function further enhances this effect.
+      The tanh function compresses the prediction weights of easily
+      classified samples close to extreme values and amplifies the
+      prediction weights of difficult-to-classify samples in interme-
+      diate ambiguous regions, thereby reducing the interference of
+      easily classified samples on the overall loss and strengthening
+      the model’s attention to boundary samples in the fuzzy area.
+      Additionally, the tanh function has the effect of smoothing                       Fig. 4. Industrial coking furnace F101/3 structure.
+      extreme weight changes. This smooth nonlinear characteristic
+      helps to alleviate the gradient oscillation caused by excessive                                                   TABLE II
+      or unstable gradient fluctuations. Consequently, it contributes                                   S AMPLE S IZE FOR T RAINING AND T ESTING
+      to better convergence and robustness.
+
+      D. Fault Diagnosis Steps
+         Step 1 (Preprocessing Data): Mark, randomly shuffle, and
+      normalize the acquired data. Then, the standardized dataset is
+      divided into training and testing sets.
+         Step 2 (Model Training): Input the training set data into
+      the DMSAM-OAdB model. The MSAM module extracts and                                   The dataset consists of six categories including five typical
+      fuses the features with different sizes of receptive fields,                      faults and one normal operation data. The five faults are
+      refines key information, and removes redundant information                        generated by introducing drift signals, step signals and random
+      interference through soft thresholding and sigmoid activation.                    signals. Detailed descriptions of the fault types are presented
+      The OAdB dynamically adjusts the weights of samples and                           in Table I.
+      classifiers in each new iteration to minimize the impact of lim-
+      ited sample and class imbalance while improving the model’s                       B. Experimental Settings and Evaluation Indicators
+      overall ability to recognize difficult-to-classify samples.
+                                                                                           The sample size used for training and testing is shown in
+         Step 3 (Model Optimization): The Adam optimizer is uti-
+                                                                                        Table II.
+      lized to update the model parameters along the gradient
+                                                                                           The deep learning network models were implemented using
+      direction to minimize the IFL loss function, thereby obtaining
+                                                                                        the Keras library under the TensorFlow framework in Python.
+      and saving a strong classification model.
+                                                                                        All experiments were conducted on a system equipped with
+         Step 4 (Model Verification): Input the testing set data into
+                                                                                        an Intel1 Core2 i5-9300H CPU @ 2.40 GHz and standard
+      the saved strong classification model for fault diagnosis.
+                                                                                        memory configuration. The proposed DMSAM-OAdB model
+                                                                                        is compared with six existing methods: focal loss [23], label
+                        III. E XPERIMENTAL R ESEARCH                                    distribution aware margin (LDAM) loss [24], GC-ResCNN
+      A. Data Introduction                                                              [25], AkNets [26], random forest (RF) algorithm [27], and
+                                                                                        AdaBoost decision trees (ADTs) [28]. Specifically, the focal
+         Industrial coking furnace F101/3 is a heating furnace, as
+                                                                                        loss assigns higher weights to difficult-to-categorize samples;
+      shown in Fig. 4. It is mainly designed to rapidly heat the
+                                                                                        the core idea of LDAM is to adjust the categorization decision
+      temperature of raw material for deep processing of crude
+                                                                                        boundary based on the number of category samples, giving
+      oil. Its fuel source is primarily self-produced high-pressure
+                                                                                        the minority class a larger decision margin; GC-ResCNN is a
+      gas. The operation of the coking furnace includes three key
+      stages: high-temperature heating of feedstock, separation of                         1 Registered trademark.
+
+      components, and cracking to generate target products [22].                           2 Trademarked.
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      3501608                                                                     IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 75, 2026
+
+
+
+                                                                          TABLE III
+                                  I MPACT OF THE N UMBER OF BASE C LASSIFIERS ON THE P ERFORMANCE OF THE P ROPOSED M ODEL
+
+
+
+
+                                                                                        the OAdB will randomly reset the weights of a certain num-
+                                                                                        ber of correctly classified majority class samples to zero in
+                                                                                        the new round of iterations, which will reduce the number
+                                                                                        of samples participating in training in subsequent iterations
+                                                                                        and further increases the risk of overfitting of subsequent
+                                                                                        classifiers. Moreover, the diminishing marginal returns also
+                                                                                        explain why increasing the number of base classifiers cannot
+                                                                                        significantly enhance the ensemble model performance, as
+                                                                                        later base classifiers carry less weight in the overall model and
+                                                                                        have limited influence on the final decision. Furthermore, the
+                                                                                        increase in base classifiers leads to higher computational costs
+      Fig. 5. G-mean results of each model.
+                                                                                        and extended training time. Therefore, to achieve a balance
+                                                                                        between model performance and resource consumption while
+                                                                                        avoiding overfitting and underfitting, this article selects four
+      global context residual CNN based on a hierarchical architec-                     DMSAM base classifiers.
+      ture, which combines a global context information extraction
+      module with multifeature fusion technology; AkNets generates
+                                                                                        D. Comparison of Existing Methods
+      feature representations with receptive fields of different sizes
+      through multiscale feature fusion and information-guided soft                        Table IV and Fig. 5 demonstrate the results of the proposed
+      attention mechanism and adaptively adjusts the receptive field                    DMSAM-OAdB and six comparison methods under three
+      size in combination with a dynamic selection strategy; RF is                      unbalanced conditions. It is observed that the proposed model
+      a bagging method based on decision trees and each tree is                         outperforms the other six comparative models under long tail,
+      built on a different training subset with replacement sampling;                   imbalanced, and balanced conditions. First, by comparing the
+      ADT is an AdaBoost ensemble method that uses decision trees                       performance with the focal loss model and LDAM loss model,
+      as base classifiers. For the first two methods, we still use the                  we can observe that the DMSAM-OAdB model performs bet-
+      network architecture and training mechanism of the DMSAM-                         ter in terms of both global classification and category balance.
+      OAdB and only replace the loss function.                                          Second, in comparison with multiscale attention models such
+         In classification tasks with balanced class distributions,                     as GC-ResCNN and AkNets, although the former enhances the
+      accuracy (Acc), precision (P), and recall (R) are typically                       modeling of local and global discriminative features through
+      adopted as evaluation metrics. When dealing with imbal-                           hierarchical structure and multifeature fusion mechanisms and
+      anced classification, the F1-score and the G-mean are more                        the latter integrates multiscale information dynamically via
+      representative. The F1-score considers the tradeoff between                       AK convolution and soft squeeze-and-excitation (Soft SE)
+      precision and recall and provides a more reasonable reflection                    attention mechanisms, their single-structure nature still limits
+      of the model’s ability to identify minority classes. The G-mean                   their effectiveness in handling class imbalance and complex
+      evaluates the overall performance of the fault diagnosis model                    pattern recognition. In contrast, the proposed method lever-
+      by integrating its recognition capability across different fault                  ages the MSAM module to extract critical fault information
+      categories, which emphasizes balanced performance among all                       and incorporates ensemble learning to achieve collaborative
+      classes.                                                                          training and decision fusion across multiple base classifiers,
+                                                                                        thereby capturing diverse and fine-grained fault feature dis-
+                                                                                        tributions more effectively. Third, compared with traditional
+      C. Structural Strategy Analysis                                                   ensemble learning models such as RF and ADT, the DMSAM-
+         The number of base classifiers significantly affects the                       OAdB model enhances fault feature modeling through its
+      performance of the ensemble model. As shown in Table III,                         integrated feature learning and ensemble strategy and signif-
+      under long tail conditions, the performance of DMSAM-                             icantly improves diagnostic consistency and reliability under
+      OAdB reaches a peak with four base classifiers, showing                           various data distributions. The G-mean index comprehensively
+      the highest diagnostic accuracy and G-mean value. However,                        considers the model’s classification ability for minority and
+      increasing the number of base classifiers does not continu-                       majority classes. The proposed model reaches the highest G-
+      ously improve the overall model performance as an excessive                       mean value of 0.97781 under balanced data distribution and
+      number of base classifiers may lead to overfitting. Notably,                      can also reach 0.9101 under extremely imbalanced conditions.
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      ZHU AND ZHANG: NEW ATTENTION ENSEMBLE-BASED FAULT DIAGNOSIS FOR INDUSTRIAL PROCESSES                                                                     3501608
+
+
+
+                                                                                 TABLE IV
+                                                           FAULT D IAGNOSIS R ESULTS IN T HREE C ONDITIONS
+
+
+
+
+      Fig. 6. G-mean metric under long tail conditions.
+
+
+                                        TABLE V
+                      A BLATION E XPERIMENT M ODEL S ETTINGS
+
+
+
+
+      E. Ablation Experiment
+         In this section, three different models are selected to perform
+      a comparison with the DMSAM-OAdB. The specific settings
+      are shown in Table V, where CNN denotes the 1 × 1
+      convolutional layer. Among them, Model A modifies the loss
+      function of the proposed model to the CE loss function, Model
+      B replaces the MSAM module with a 1 × 1 convolutional                             Fig. 7. Classification results under three conditions. (a) Long tail condition.
+      layer, and Model C deletes the OAdB ensemble learning                             (b) Imbalanced condition. (c) Balanced condition.
+      module and uses a single-base learner to make classification
+      predictions. Fig. 6 illustrates the G-mean metric results of the                  classification effect. However, the proposed method integrates
+      four models. Fig. 7 presents a heatmap-based visualization of                     the MSAM with the OAdB and introduces the improved loss
+      the precision and recall for each fault type under the three                      function IFL to achieve the best diagnostic results under three
+      imbalance conditions. It can be observed that the proposed                        conditions with finite samples.
+      models achieve better diagnostic results in all three distribution
+      cases, and with the increase in the number of fault samples,
+      the fault classification ability of the four models has improved.                                             IV. C ONCLUSION
+      This is because the imbalance of data will complicate the                           This article proposes an end-to-end fault diagnosis frame-
+      learning of accurate decision boundaries, thereby affecting the                   work DMSAM-OAdB for finite and imbalanced samples of
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+      3501608                                                                      IEEE TRANSACTIONS ON INSTRUMENTATION AND MEASUREMENT, VOL. 75, 2026
+
+
+
+      industrial process. The main idea is to utilize MSAMs to                           [13] F. Duan, S. Zhang, Y. Yan, and Z. Cai, “An oversampling method of
+      extract key features under finite sample and combine improved                           unbalanced data for mechanical fault diagnosis based on MeanRadius-
+                                                                                              SMOTE,” Sensors, vol. 22, no. 14, p. 5166, Jul. 2022.
+      loss functions and ensemble algorithms to adaptively adjust                        [14] J. Zhou, Z. Wu, Q. Wang, and Z. Yu, “Fault diagnosis method of smart
+      the attention to minority class samples and difficult-to-classify                       meters based on DBN-CapsNet,” Electronics, vol. 11, no. 10, p. 1603,
+      samples to improve the fault diagnosis ability. The fault                               May 2022.
+                                                                                         [15] X. Yuan et al., “Quality prediction modeling for industrial processes
+      diagnosis performance of DMSAM-OAdB was validated using                                 using multiscale attention-based convolutional neural network,” IEEE
+      the industrial coking furnace datasets under long tail, imbal-                          Trans. Cybern., vol. 54, no. 5, pp. 2696–2707, May 2024.
+      anced, and balanced conditions. Results demonstrated that                          [16] G. Wang, Y. Li, Y. Wang, Z. Wu, and M. Lu, “Bidirectional shrink-
+                                                                                              age gated recurrent unit network with multiscale attention mechanism
+      compared with the existing methods, the proposed model has                              for multisensor fault diagnosis,” IEEE Sensors J., vol. 23, no. 20,
+      significantly improved the accuracy of fault diagnosis.                                 pp. 25518–25533, Oct. 2023.
+                                                                                         [17] M. Zhao, S. Zhong, X. Fu, B. Tang, and M. Pecht, “Deep residual
+                                                                                              shrinkage networks for fault diagnosis,” IEEE Trans. Ind. Informat.,
+                                     R EFERENCES                                              vol. 16, no. 7, pp. 4681–4690, Jul. 2020.
+                                                                                         [18] M. A. Ganaie, M. Hu, A. K. Malik, M. Tanveer, and P. N. Suganthan,
+      [1]  N. Wang, F. Yang, R. Zhang, and F. Gao, “Intelligent fault diagnosis
+                                                                                              “Ensemble deep learning: A review,” Eng. Appl. Artif. Intell., vol. 115,
+           for chemical processes using deep learning multimodel fusion,” IEEE
+                                                                                              Sep. 2022, Art. no. 105151.
+           Trans. Cybern., vol. 52, no. 7, pp. 7121–7135, Jul. 2022.
+                                                                                         [19] W. Tao, Z. Sun, Z. Yang, B. Liang, G. Wang, and S. Xiao, “Transformer
+      [2] Z. Ye and J. Yu, “Multi-level features fusion network-based feature
+                                                                                              fault diagnosis technology based on AdaBoost enhanced transferred
+           learning for machinery fault diagnosis,” Appl. Soft Comput., vol. 122,
+                                                                                              convolutional neural network,” Expert Syst. Appl., vol. 264, Mar. 2025,
+           Jun. 2022, Art. no. 108900.
+                                                                                              Art. no. 125972.
+      [3] K. Liu, N. Lu, F. Wu, R. Zhang, and F. Gao, “Model fusion and
+                                                                                         [20] B. S. Raghuwanshi and S. Shukla, “Classifying imbalanced data using
+           multiscale feature learning for fault diagnosis of industrial processes,”
+                                                                                              BalanceCascade-based kernelized extreme learning machine,” Pattern
+           IEEE Trans. Cybern., vol. 53, no. 10, pp. 6465–6478, Oct. 2023.
+                                                                                              Anal. Appl., vol. 23, no. 3, pp. 1157–1182, Aug. 2020.
+      [4] S. Wan, T. Li, B. Fang, K. Yan, J. Hong, and X. Li, “Bearing fault
+                                                                                         [21] Y. Xi, M. Li, F. Zhou, X. Tang, Z. Li, and J. Tian, “SE-inception-ResNet
+           diagnosis based on multisensor information coupling and attentional
+                                                                                              model with focal loss for transmission line fault classification under class
+           feature fusion,” IEEE Trans. Instrum. Meas., vol. 72, pp. 1–12, 2023.
+                                                                                              imbalance,” IEEE Trans. Instrum. Meas., vol. 73, pp. 1–17, 2024.
+      [5] Z. Wei, X. Ji, L. Zhou, Y. Dang, and Y. Dai, “A novel deep learning
+                                                                                         [22] R. Zhang, A. Xue, and F. Gao, “Temperature control of industrial coke
+           model based on target transformer for fault diagnosis of chemical
+                                                                                              furnace using novel state space model predictive control,” IEEE Trans.
+           process,” Process Saf. Environ. Protection, vol. 167, pp. 480–492, Nov.
+                                                                                              Ind. Informat., vol. 10, no. 4, pp. 2084–2092, Nov. 2014.
+           2022.
+                                                                                         [23] T.-Y. Lin, P. Goyal, R. B. Girshick, K. He, and P. Dollár, “Focal loss for
+      [6] Q. Wei, X. Tian, L. Cui, F. Zheng, and L. Liu, “WSAFormer-DFFN: A
+                                                                                              dense object detection,” in Proc. IEEE Int. Conf. Comput. Vis. (ICCV),
+           model for rotating machinery fault diagnosis using 1D window-based
+                                                                                              Oct. 2017, pp. 2999–3007.
+           multi-head self-attention and deep feature fusion network,” Eng. Appl.
+                                                                                         [24] K. Cao, C. Wei, A. Gaidon, N. Arechiga, and T. Ma, “Learning
+           Artif. Intell., vol. 124, Sep. 2023, Art. no. 106633.
+                                                                                              imbalanced datasets with label-distribution-aware margin loss,”
+      [7] J. Jiang et al., “A digital twin auxiliary approach based on adaptive
+                                                                                              in Proc. 33rd Int. Conf. Neural Inf. Process. Syst., 2019,
+           sparse attention network for diesel engine fault diagnosis,” Sci. Rep.,
+                                                                                              pp. 1567–1578.
+           vol. 12, no. 1, Jan. 2022, Art. no. 1.
+                                                                                         [25] Y. Xu, X. Yan, B. Sun, and Z. Liu, “Global contextual residual
+      [8] Q. Zhang et al., “Improved sparse low-rank model via periodic over-
+                                                                                              convolutional neural networks for motor fault diagnosis under variable-
+           lapping group shrinkage and truncated nuclear norm for rolling bearing
+                                                                                              speed conditions,” Rel. Eng. Syst. Saf., vol. 225, Sep. 2022, Art. no.
+           fault diagnosis,” Meas. Sci. Technol., vol. 34, no. 6, Jun. 2023, Art. no.
+                                                                                              108618.
+           065009.
+                                                                                         [26] Y. Chang, J. Chen, Q. Chen, S. Liu, and Z. Zhou, “CFs-focused
+      [9] Q. Zhu, X. Wang, N. Zhang, Y. Xu, and Y. He, “Novel K-medoids
+                                                                                              intelligent diagnosis scheme via alternative kernels networks with soft
+           based SMOTE integrated with locality preserving projections for fault
+                                                                                              squeeze-and-excitation attention for fast-precise fault detection under
+           diagnosis,” IEEE Trans. Instrum. Meas., vol. 71, pp. 1–8, 2022.
+                                                                                              slow & sharp speed variations,” Knowl.-Based Syst., vol. 239, Mar.
+      [10] M. Qian and Y.-F. Li, “A novel adaptive undersampling framework
+                                                                                              2022, Art. no. 108026.
+           for class-imbalance fault detection,” IEEE Trans. Rel., vol. 72, no. 3,
+                                                                                         [27] N. Haque, A. Jamshed, K. Chatterjee, and S. Chatterjee, “Accurate
+           pp. 1003–1017, Sep. 2023.
+                                                                                              sensing of power transformer faults from dissolved gas data using
+      [11] P. Peng, W. Zhang, Y. Zhang, Y. Xu, H. Wang, and H. Zhang,
+                                                                                              random forest classifier aided by data clustering method,” IEEE Sensors
+           “Cost sensitive active learning using bidirectional gated recurrent neural
+                                                                                              J., vol. 22, no. 6, pp. 5902–5910, Mar. 2022.
+           networks for imbalanced fault diagnosis,” Neurocomputing, vol. 407,
+                                                                                         [28] Y. Xu et al., “A multi-fault diagnosis method based on improved
+           pp. 232–245, Sep. 2020.
+                                                                                              SMOTE for class-imbalanced data,” Can. J. Chem. Eng., vol. 101, no. 4,
+      [12] Z. Mian et al., “A literature review of fault diagnosis based on ensemble
+                                                                                              pp. 1986–2001, Apr. 2023.
+           learning,” Eng. Appl. Artif. Intell., vol. 127, Jan. 2024, Art. no. 107357.
+
+
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 04:05:41 UTC from IEEE Xplore. Restrictions apply.
+

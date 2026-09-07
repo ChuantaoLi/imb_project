@@ -86,8 +86,69 @@ def _load_yaml(path):
 # Model discovery
 # =============================================================================
 
+# -----------------------------------------------------------------------------
+# VERSION_REGISTRY — explicit registration of every ours_vN improvement version.
+# Each entry: MODEL_KEY -> (module, short description). Entries are merged into
+# discovery (auto-discovery of Model/*.py also picks them up; the registry makes
+# the version chain explicit and documents what changed between versions).
+# -----------------------------------------------------------------------------
+VERSION_REGISTRY = {
+    # ours_v1 最终设计 (冻结版):
+    #   1) 类预算权重: 每轮从累计集成的软边际重导出权重, 每类总预算相等 (1/C),
+    #      取代 v0 的 exp(-delta*(1-rho)) 稀疏惩罚 (后者饿死少数类导致坍缩)。
+    #   2) 验证式混合采样: 每类配额 = (target-n_c)*O_t*need_c, need_c 来自当前
+    #      集成的类平均边际 (采样<->集成协同反馈); 配额累加器解决小类取整为 0;
+    #      安全种子SMOTE / 边界种子中点球验证推 / 孤立种子不生成; 接受率门控
+    #      使不可分 blob 自限为零采样; 多数类在权重层平衡 (数据层欠采样经消融
+    #      证明有害已移除); 噪声清理经消融证明有害/中性, 默认关闭。
+    #   3) mini-forest 弱学习器 (2 棵树, sqrt 特征, bootstrap): 单树的叶子概率
+    #      在类预算下饱和 (0.9+), 毁掉概率排序 (AUC 0.881/第18); mini-forest
+    #      修复排序 (AUC 0.924/第2, AUPRC 0.739/第7) 且保住 GMean/F1。
+    #   Complete 协议 113 数据集: F1 0.812, GMean 0.740, AUC 0.924, AUPRC 0.737
+    #   -> Avg_Rank_excl_Runtime 7.25 (22 模型中第 4, 进入前 5)。
+    "ours_v1": ("Model.ours_v1",
+               "v1 最终版: 类预算权重 + 验证式混合采样(配额累加器/自适应k/"
+               "接受率门控) + mini-forest 弱学习器; 113 数据集 AvgRank 7.25 (第4)"),
+    "ours_v2": ("Model.ours_v2",
+               "v2: 平衡目标梯度权重 w_i=(1/n_c)·σ(-m_i) (每类总质量自动有界 "
+               "[0.27,0.73], 无显式预算/裁剪/阈值) + 赤字驱动配额 "
+               "(def_c=1-m̄_c, 累加器, 隐式调度) + 信任度分派生成 "
+               "(种子π∝σ(-m)·τ, 步长λ·τ); 5fold 协议, 关注 GMean"),
+    "ours_v3": ("Model.ours_v3",
+               "v3: 干净超球统一全链路 — 每个样本的干净半径 "
+               "r_i=min_{j:y_j≠y_i}‖x_i-x_j‖ 驱动: 权重 w_i=σ(-m_i)·r_i/C_c "
+               "(类干净空间占比) + 配额接受率门控 η_c (中点球验证, 嵌入类自限) "
+               "+ 生成 (种子π∝w_i, 干净对中点球验证, 无干净对tiny类按干净半径"
+               "复制); 移除信任度概念"),
+    "ours_v4": ("Model.ours_v4",
+               "v4: v3 + sqrt 干净份额权重 w_i=σ(-m_i)·√r_i/Σ√r_j — 边际梯度"
+               "恢复主导 (AUC 恢复), 超球因子降半幂; 类级归一化保持质量有界"),
+    # Research iteration chain; each module is retained for reproducibility.
+    "ours_v1_2": ("Model.ours_v1_2", "V1.2 margin hardness"),
+    "ours_v1_3": ("Model.ours_v1_3", "V1.3 density-aware pacing"),
+    "ours_v1_4": ("Model.ours_v1_4", "V1.4 inverse-frequency cost sensitivity"),
+    "ours_v1_5": ("Model.ours_v1_5", "V1.5 entropy hardness"),
+    "ours_v1_6": ("Model.ours_v1_6", "V1.6 density-cost coupling"),
+    "ours_v1_7": ("Model.ours_v1_7", "V1.7 boundary pacing"),
+    "ours_v1_8": ("Model.ours_v1_8", "V1.8 shallow-tree ablation"),
+    "ours_v1_9": ("Model.ours_v1_9", "V1.9 ExtraTrees weak learner"),
+    "ours_v1_10": ("Model.ours_v1_10", "V1.10 density-cost final V1"),
+    "ours_v2_1": ("Model.ours_v2_1", "V2.1 bootstrap diversity"),
+    "ours_v2_2": ("Model.ours_v2_2", "V2.2 calibrated prior"),
+    "ours_v2_3": ("Model.ours_v2_3", "V2.3 SMOM-style margin focus"),
+    "ours_v2_4": ("Model.ours_v2_4", "V2.4 SOUP-style diversity"),
+    "ours_v2_5": ("Model.ours_v2_5", "V2.5 DEAHS-style adaptive pace"),
+    "ours_v2_6": ("Model.ours_v2_6", "V2.6 SHSampler boundary quota"),
+    "ours_v2_7": ("Model.ours_v2_7", "V2.7 focal boosting"),
+    "ours_v2_8": ("Model.ours_v2_8", "V2.8 temperature aggregation"),
+    "ours_v2_9": ("Model.ours_v2_9", "V2.9 robust ExtraTrees"),
+    "ours_v2_10": ("Model.ours_v2_10", "V2.10 SOUP-style diverse SPE"),
+    "ours_v2_final": ("Model.ours_v2_final", "V2 final selected composition"),
+}
+
 def discover_models():
-    """Scan Model/*.py, import each module, and return those exposing build().
+    """Scan Model/*.py (+ VERSION_REGISTRY), import each module, and return
+    those exposing build().
 
     Returns:
         dict: {model_key: module}  where model_key is the module's MODEL_KEY attr.
@@ -99,10 +160,18 @@ def discover_models():
         print("[run_all] WARNING: Model/ directory not found")
         return avail
 
-    for fname in sorted(os.listdir(model_dir)):
-        if not fname.endswith(".py") or fname.startswith("_"):
-            continue
-        mod_name = fname[:-3]
+    mod_names = sorted(fname[:-3] for fname in os.listdir(model_dir)
+                       if fname.endswith(".py") and not fname.startswith("_"))
+    for key, (mod_name, _desc) in VERSION_REGISTRY.items():
+        if mod_name.startswith("Model."):
+            mod_name = mod_name[len("Model."):]
+        if mod_name not in mod_names:
+            print(f"[run_all] WARNING: registry entry '{key}' -> {mod_name} "
+                  f"not found in Model/; skipped")
+        else:
+            mod_names.append(mod_name)
+
+    for mod_name in dict.fromkeys(mod_names):   # dict.fromkeys dedups, keeps order
         try:
             mod = importlib.import_module(f"Model.{mod_name}")
         except Exception as e:
@@ -278,6 +347,12 @@ def load_config(config_path="config.yaml", cli_args=None):
     # auto-discovery is the convenient default here)
     config_models = cli.get("models") if cli.get("models") is not None else (yaml_cfg.get("models") or None)
 
+    # --- keel layout: '5fold' (pre-split folds, 5-CV) | 'complete' (whole
+    # datasets, single deterministic holdout split) ---
+    keel_folds = cli.get("keel_folds") or yaml_cfg.get("keel_folds", "5fold")
+    if keel_folds not in ("5fold", "complete"):
+        raise ValueError(f"keel_folds must be '5fold' or 'complete', got {keel_folds!r}")
+
     # --- datasets (KEEL), bearing, software_defect, heart ---
     # Strict: [] really means "none"; missing key means "all".
     config_datasets = _resolve_list(yaml_cfg, "datasets", cli.get("datasets"))
@@ -294,6 +369,8 @@ def load_config(config_path="config.yaml", cli_args=None):
 
     # --- folds ---
     n_folds = cli.get("n_folds") or yaml_cfg.get("n_folds") or (1 if smoke else 5)
+    if keel_folds == "complete" and cli.get("n_folds") is None:
+        n_folds = 1          # complete datasets have exactly one holdout split
 
     # --- output ---
     output_cfg = yaml_cfg.get("output") or {}
@@ -315,6 +392,7 @@ def load_config(config_path="config.yaml", cli_args=None):
     return {
         "smoke": smoke,
         "mode": mode,
+        "keel_folds": keel_folds,             # '5fold' | 'complete'
         "models": config_models,              # None=all, []=all (convenience), [...]=only
         "datasets": config_datasets,          # None=all, []=none, [...]=only
         "bearing_names": config_bearing_names,# None=all, []=none, [...]=only
@@ -441,7 +519,7 @@ def run_benchmark(config):
         (heart_names is None or len(heart_names) == 0)
     )
     if smoke and all_empty:
-        datasets = ["ecoli"]
+        datasets = ["ecoli1"]
         bearing_names = []
         irs = ()
         sdp_names = []
@@ -449,12 +527,15 @@ def run_benchmark(config):
         n_folds = 5
 
     # --- discover datasets ---
+    keel_root = (paths.KEEL_COMPLETE if config["keel_folds"] == "complete"
+                 else paths.KEEL_5FOLD)
     ds_list = discover_all_datasets(
         keel_filter=_filter_set(datasets),
         bearing_irs=irs if irs else (5, 10, 20, 30),
         bearing_names=_filter_set(bearing_names),
         sdp_names=_filter_set(sdp_names),
-        heart_names=_filter_set(heart_names))
+        heart_names=_filter_set(heart_names),
+        keel_root=keel_root)
     if not ds_list:
         raise FileNotFoundError("no datasets found for the given filters")
 
@@ -491,8 +572,13 @@ def run_benchmark(config):
             for row in rows:
                 m = str(row.get("Model", ""))
                 d = str(row.get("Dataset", ""))
-                # error rows are NOT "completed" — they get retried next run
-                if m and d and not row.get("Error"):
+                # error rows are NOT "completed" — they get retried next run.
+                # NB: an empty Error column becomes NaN after xlsx conversion,
+                # and `not NaN` is False, so NaN must be treated as "no error".
+                err = row.get("Error")
+                has_err = not (err is None or pd.isna(err)
+                               or str(err).strip() == "")
+                if m and d and not has_err:
                     completed.add((m, d))
             print(f"[run_all] loaded {len(completed)} existing cells from "
                   f"{os.path.basename(load_path)}")
@@ -519,7 +605,23 @@ def run_benchmark(config):
     if cm_json_dir:
         os.makedirs(cm_json_dir, exist_ok=True)
 
-    # --- main loop (each model×dataset can run in an isolated subprocess) ---
+    # --- traversal order ---
+    # models_outer (used for the complete protocol): iterate models in speed
+    # order × datasets, so the fast models finish all datasets first and a
+    # partial ranking exists early.  Cells are identical either way (resume
+    # still skips completed ones).
+    # Approximation of per-dataset fit cost (seconds, complete protocol);
+    # unknown models are treated as fast so they never block the rest.
+    _MODEL_SPEED = {
+        "AdaBoostAD": 0.1, "LexiBoost": 0.2, "DualLexiBoost": 1.0,
+        "glos": 0.1, "mc_ccr": 0.1, "mdo": 0.1, "shsampler": 0.1,
+        "Ours": 2.0, "ILMNN": 0.4, "NROMM": 2.6, "FRAME": 6.0,
+        "EB-SMOTE": 0.6, "OREM-M": 0.2, "SOUP": 9.0, "MC-RBO": 12.0,
+        "QC-SMOTE": 12.0, "SPE": 11.0, "DBCF": 15.0, "imDEF": 14.0,
+        "SMOM": 26.0, "DEAHS": 80.0,
+    }
+    models_outer = config.get("keel_folds") == "complete"
+    iter_pairs = []
     for ds in ds_list:
         # Pre-flight: verify the dataset can actually be loaded
         try:
@@ -527,100 +629,109 @@ def run_benchmark(config):
         except Exception as e:
             print(f"\n--- LOAD FAIL {ds.name}: {e}")
             continue
-
-        n_classes = len(classes_pre)
         for key, mod in avail.items():
-            paper_name = paper_names.get(key, key)
-            module_name = getattr(mod, "_module_name", f"Model.{key}")
+            iter_pairs.append((ds, key, mod, len(classes_pre)))
+    if models_outer:
+        iter_pairs.sort(key=lambda p: (_MODEL_SPEED.get(p[1], 0.1), p[1]))
+    else:
+        iter_pairs.sort(key=lambda p: (p[0].name, p[1]))
+    n_cells_done = 0
 
-            if (paper_name, ds.name) in completed:
-                print(f"\n--- skip {paper_name:12s} | {ds.name} (already in xlsx) ---",
-                      flush=True)
-                continue
+    # --- main loop (each model×dataset can run in an isolated subprocess) ---
+    for ds, key, mod, n_classes in iter_pairs:
+        paper_name = paper_names.get(key, key)
+        module_name = getattr(mod, "_module_name", f"Model.{key}")
 
-            t0 = time.time()
-            tag = "[direct]" if no_isolation else "[isolated]"
-            print(f"\n--- {paper_name:12s} | {ds.name} (C={n_classes})"
-                  f" {tag} ---", flush=True)
+        if (paper_name, ds.name) in completed:
+            print(f"\n--- skip {paper_name:12s} | {ds.name} (already in xlsx) ---",
+                  flush=True)
+            continue
 
-            if no_isolation:
-                # --------------------------------------------------------------
-                # In-process path (original behaviour; for debugging)
-                # --------------------------------------------------------------
-                try:
-                    folds, classes = load_folds(ds)
-                    folds_run = folds[:n_folds]
-                    extra_params = model_params.get(key, {})
-                    factory = (lambda m, ep: (lambda seed: m.build(
-                        random_state=seed, smoke=smoke, **ep)))(mod, extra_params)
-                    result = run_model_on_dataset(
-                        factory, ds, folds_run, classes,
-                        model_key=paper_name, base_seed=base_seed,
-                        save_cm=save_cm, cm_json_dir=cm_json_dir, verbose=smoke)
-                    status, result_or_err = 'success', result
-                except Exception as e:
-                    status, result_or_err = 'error', str(e)
-            else:
-                # --------------------------------------------------------------
-                # Subprocess isolation: a C-level crash kills only this cell
-                # --------------------------------------------------------------
-                status, result_or_err = _run_cell_isolated(
-                    model_key=key,
-                    module_name=module_name,
-                    desc=ds,
-                    n_folds=n_folds,
-                    paper_name=paper_name,
-                    model_params=model_params,
-                    smoke=smoke,
-                    base_seed=base_seed,
-                    save_cm=save_cm,
-                    cm_json_dir=cm_json_dir,
-                )
+        t0 = time.time()
+        tag = "[direct]" if no_isolation else "[isolated]"
+        print(f"\n--- {paper_name:12s} | {ds.name} (C={n_classes})"
+              f" {tag} ---", flush=True)
 
-            elapsed = time.time() - t0
+        if no_isolation:
+            # --------------------------------------------------------------
+            # In-process path (original behaviour; for debugging)
+            # --------------------------------------------------------------
+            try:
+                folds, classes = load_folds(ds)
+                folds_run = folds[:n_folds]
+                extra_params = model_params.get(key, {})
+                factory = (lambda m, ep: (lambda seed: m.build(
+                    random_state=seed, smoke=smoke, **ep)))(mod, extra_params)
+                result = run_model_on_dataset(
+                    factory, ds, folds_run, classes,
+                    model_key=paper_name, base_seed=base_seed,
+                    save_cm=save_cm, cm_json_dir=cm_json_dir, verbose=smoke)
+                status, result_or_err = 'success', result
+            except Exception as e:
+                status, result_or_err = 'error', str(e)
+        else:
+            # --------------------------------------------------------------
+            # Subprocess isolation: a C-level crash kills only this cell
+            # --------------------------------------------------------------
+            status, result_or_err = _run_cell_isolated(
+                model_key=key,
+                module_name=module_name,
+                desc=ds,
+                n_folds=n_folds,
+                paper_name=paper_name,
+                model_params=model_params,
+                smoke=smoke,
+                base_seed=base_seed,
+                save_cm=save_cm,
+                cm_json_dir=cm_json_dir,
+            )
 
-            if status == 'success':
-                row = {
-                    "Model": paper_name,
-                    "Dataset": ds.name,
-                    "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
-                    "Source": ds.source,
-                }
-                row.update(result_or_err)
-                # drop any stale error row for this cell (now retried) so the
-                # file stays deduped
-                rows = [r for r in rows
-                        if not (str(r.get("Model", "")) == paper_name
-                                and str(r.get("Dataset", "")) == ds.name)]
-                metric_str = ""
-                if "Accuracy_mean" in result_or_err:
-                    metric_str = (f"Acc={result_or_err['Accuracy_mean']:.3f} "
-                                  f"F1={result_or_err['F1_mean']:.3f} "
-                                  f"GMean={result_or_err['GMean_mean']:.3f}")
-                print(f"    -> done in {elapsed:.1f}s ({metric_str})",
-                      flush=True)
-            else:
-                print(f"    -> CRASH/ERROR: {result_or_err}", flush=True)
-                traceback.print_exc()
-                row = {
-                    "Model": paper_name,
-                    "Dataset": ds.name,
-                    "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
-                    "Source": ds.source,
-                    "Error": str(result_or_err),
-                }
+        elapsed = time.time() - t0
 
-            rows.append(row)
-            if status == 'success':
-                completed.add((paper_name, ds.name))
+        if status == 'success':
+            row = {
+                "Model": paper_name,
+                "Dataset": ds.name,
+                "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
+                "Source": ds.source,
+            }
+            row.update(result_or_err)
+            # drop any stale error row for this cell (now retried) so the
+            # file stays deduped
+            rows = [r for r in rows
+                    if not (str(r.get("Model", "")) == paper_name
+                            and str(r.get("Dataset", "")) == ds.name)]
+            metric_str = ""
+            if "Accuracy_mean" in result_or_err:
+                metric_str = (f"Acc={result_or_err['Accuracy_mean']:.3f} "
+                              f"F1={result_or_err['F1_mean']:.3f} "
+                              f"GMean={result_or_err['GMean_mean']:.3f}")
+            print(f"    -> done in {elapsed:.1f}s ({metric_str})",
+                  flush=True)
+        else:
+            print(f"    -> CRASH/ERROR: {result_or_err}", flush=True)
+            traceback.print_exc()
+            row = {
+                "Model": paper_name,
+                "Dataset": ds.name,
+                "IR": (f"IR{ds.ir}" if ds.source == "bearing" else "-"),
+                "Source": ds.source,
+                "Error": str(result_or_err),
+            }
 
-            # --- release memory ---
-            gc.collect()
+        rows.append(row)
+        if status == 'success':
+            completed.add((paper_name, ds.name))
 
-        # --- end-of-dataset save to CSV (stable, no C extensions) ---
-        _save_rows_csv(rows, csv_path)
-        print(f"    [dataset save] {len(completed)}/{total_cells} cells -> "
-              f"{os.path.basename(csv_path)}", flush=True)
+        # --- release memory ---
+        gc.collect()
+
+        # --- periodic save to CSV (stable, no C extensions) ---
+        n_cells_done += 1
+        if n_cells_done % 25 == 0:
+            _save_rows_csv(rows, csv_path)
+            print(f"    [save] {len(completed)}/{total_cells} cells -> "
+                  f"{os.path.basename(csv_path)}", flush=True)
 
     # --- final CSV save + xlsx conversion ---
     _save_rows_csv(rows, csv_path)
@@ -655,6 +766,9 @@ def main():
                     help="Comma list of MODEL_KEYs (overrides config)")
     ap.add_argument("--datasets", default=None,
                     help="Comma list of KEEL dataset names (overrides config)")
+    ap.add_argument("--keel-folds", default=None, choices=["5fold", "complete"],
+                    help="KEEL layout: '5fold' (pre-split 5-CV) or "
+                         "'complete' (whole datasets, single holdout)")
     ap.add_argument("--bearing-names", default=None,
                     help="Comma list of Bearing names (overrides config)")
     ap.add_argument("--irs", default=None,
@@ -695,6 +809,7 @@ def main():
                    if args.models else None),
         "datasets": ([x.strip() for x in args.datasets.split(",")]
                      if args.datasets else None),
+        "keel_folds": args.keel_folds,
         "bearing_names": ([x.strip() for x in args.bearing_names.split(",")]
                           if args.bearing_names else None),
         "irs": (tuple(int(x) for x in args.irs.split(","))

@@ -1,0 +1,1330 @@
+                                                       Journal of Building Engineering 70 (2023) 106338
+
+
+                                                           Contents lists available at ScienceDirect
+
+
+                                                 Journal of Building Engineering
+                                                   journal homepage: www.elsevier.com/locate/jobe
+
+
+
+
+Imbalanced data based fault diagnosis of the chiller via integrating
+a new resampling technique with an improved ensemble extreme
+learning machine
+Hanyuan Zhang a, *, Wenxin Yang a, Weilin Yi b, Jit Bing Lim a, Zenghui An c,
+Chengdong Li a
+a
+  Shandong Key Laboratory of Intelligent Buildings Technology, School of Information and Electrical Engineering, Shandong Jianzhu University,
+Jinan, 250101, China
+b
+  The 30th Institute, China Electronics Technology Group Corporation, Chengdu, 610041, China
+c
+  School of Mechanical and Electrical Engineering, Shandong Jianzhu University, Jinan, 250101, China
+
+
+
+
+A R T I C L E I N F O                                    A B S T R A C T
+
+Keywords:                                                Fault diagnosis of the chiller is essential to guarantee chiller’s safe operation and reduce building
+Chiller                                                  energy consumption. However, the existing fault diagnosis methods rarely consider the chiller’s
+Fault diagnosis                                          imbalanced data conditions, which always leads to low diagnosis accuracy of the minority class
+Imbalanced data                                          samples. To figure out the issue of imbalanced fault pattern data during the chiller fault diagnosis,
+Hybrid resampling                                        a hybrid resampling based improved extreme learning machine (HRIELM) is developed in our
+Selective ensemble
+                                                         work. A new hybrid resampling technique (HRT) is first proposed to balance the majority and
+Extreme learning machine
+                                                         minority classes in the imbalanced fault pattern datasets. The HRT is then carried out repetitively
+                                                         to obtain multiple diverse rebalanced training datasets using different benchmark datasets.
+                                                         Subsequently, various primary extreme learning machine (ELM) models are established utilizing
+                                                         these rebalanced training datasets. Furthermore, an improved ELM model based on a novel se­
+                                                         lective ensemble learning strategy is presented to enhance the effectiveness of the chiller fault
+                                                         diagnosis. The basic ELM models with superior performance for diagnosing the neighbor subset
+                                                         constructed according to the fault snapshot sample are first picked out, and a weight factor is
+                                                         further defined to build the final selective ensemble ELM model. Finally, the fault pattern of the
+                                                         snapshot sample is identified according to the weighted voting mechanism. Detailed experimental
+                                                         results on the ASHRAE Research Project RP-1043 experimental datasets certify the effectiveness
+                                                         of the presented HRIELM scheme for the chiller fault diagnosis under the imbalanced data
+                                                         environments.
+
+
+
+
+1. Introduction
+   As an important component of the heating, ventilation, and air-conditioning (HVAC) system, the chiller can greatly influence the
+overall running status of the HVAC [1]. If the chiller with faults is not maintained timely, the control strategy of the chiller will become
+invalid which would deteriorate the HVAC’s operating effectiveness. When fault diagnosis techniques are adopted to repair the faults
+occurring in the chiller, the energy consumption of the HVAC system can be reduced by about 30% [2]. Therefore, the fault diagnosis of
+
+
+
+    * Corresponding author.
+    E-mail address: zhanghanyuan18@sdjzu.edu.cn (H. Zhang).
+
+
+https://doi.org/10.1016/j.jobe.2023.106338
+Received 30 December 2022; Received in revised form 13 March 2023; Accepted 18 March 2023
+Available online 21 March 2023
+2352-7102/© 2023 Elsevier Ltd. All rights reserved.
+H. Zhang et al.                                                                                   Journal of Building Engineering 70 (2023) 106338
+
+
+chiller is of great significance to reduce the building energy consumption and increase the building comfort. Recently, the research on
+fault detection and diagnosis of chiller systems has gradually become one of the hot issues. However, for most data-driven based
+methods, the models are usually trained on the balanced fault pattern datasets of the chiller, which results in poor fault diagnosis
+performance for the minority class samples [3].
+    The data imbalance phenomenon among different chiller’s fault patterns mainly results from the troublesome issue of gathering
+insufficient fault pattern samples as well as some specific fault patterns possess much higher occurrence frequencies than that of other
+fault patterns [4,5]. The imbalanced datasets refer to at least one fault pattern subset (the minority class) that is usually outnumbered
+by the other fault pattern subsets (the majority class). Specifically, the detailed reasons which give rise to the problem of the chiller’s
+data imbalance are analyzed in Section 3.2. Whereas, the traditional chiller fault diagnosis models are constructed on the balanced
+fault pattern datasets by maximizing the overall diagnosis accuracy. When the traditional fault diagnosis models are employed to
+recognize the imbalanced fault snapshot datasets of the chiller, the minority class samples with greater interest than the majority class
+samples may be misclassified in most cases. Therefore, an improved fault diagnosis method is urgently needed to enhance the fault
+diagnosis accuracy of the minority classes. As the two typical data sampling level methods, the synthetic minority over-sampling
+technique (SMOTE) based over-sampling [6,7] and the random under-sampling [8,9] possess complementary advantages and
+shortcomings to deal with the problem of imbalanced data. Therefore, it is essential to come up with a new data resampling technique
+by incorporating the SMOTE based over-sampling with the random under-sampling, for the purpose of figuring out the chiller’s data
+imbalanced problem.
+    After the imbalanced datasets of the chiller are rebalanced, the data-driven based fault diagnosis techniques are usually employed
+to efficiently analyze the data. Currently, the extreme learning machine (ELM) based fault diagnosis algorithms have attracted more
+and more attention by virtue of their fast learning speed and good generalization performance [10,11]. Nonetheless, the fault iden­
+tification accuracy and robustness of the single ELM model still need to be reinforced. Fortunately, the ensemble learning strategy has
+been applied to enhance the accuracy and robustness of the single ELM based fault diagnosis models by integrating a large number of
+basic ELM models [12,13]. However, the conventional ensemble learning based ELM fault diagnosis approaches have some short­
+comings. On the one hand, when the number of integrated basic ELM models increases, it becomes more and more difficult to
+distinguish the performance differences among the numerous basic ELM diagnosis models. On the other hand, the more basic ELM
+diagnosis models are utilized, the greater the computation complexity of the final ensemble model will possess. In order to tackle the
+aforementioned defects of the traditional ensemble learning algorithms, a lot of studies about the selective ensemble learning ap­
+proaches have been conducted and reported [14–16]. Inspired by the advantages of selective ensemble learning, we put forward an
+improved ELM fault diagnosis model to identify the chiller’s faults after the historical fault pattern datasets are rebalanced, where a
+new selective ensemble learning scheme is infused into the standard ELM algorithm.
+    In our work, to figure out the above mentioned tough issues, a new hybrid resampling based improved ELM (HRIELM) diagnosis
+scheme is presented to efficiently recognize the faults of the chiller under the imbalanced fault pattern data environments. To be
+specific, a new hybrid resampling technique (HRT) is first constructed to rebalance the imbalanced fault pattern datasets of the chiller
+by incorporating the synthetic minority over-sampling technique (SMOTE) with the random under-sampling. On the basis of the
+rebalanced fault pattern datasets, an improved selective ensemble learning based ELM fault diagnosis strategy is further developed to
+recognize the patterns of fault snapshot datasets by effectively choosing the multiple basic ELM models with superior diagnosis ac­
+curacies and performance. Our main contributions are given out.
+   (1) To rebalance the imbalanced historical fault pattern datasets of the chiller, a novel HRT approach is presented by integrating the
+       SMOTE over-sampling method with the random under-sampling method. A benchmark dataset is first determined from the C
+       kinds of imbalanced fault pattern datasets. The SMOTE over-sampling method is then employed to enlarge the minority datasets
+       whose numbers of the samples are smaller than that of the benchmark dataset by generating the artificial synthetic samples,
+       while the random under-sampling method is utilized to shrink the majority datasets whose numbers of the samples are larger
+       than that of the benchmark dataset by randomly eliminating the samples. Therefore, the C kinds of the imbalanced fault pattern
+       datasets are rebalanced to have the same number of samples as that of the benchmark dataset.
+   (2) To accelerate the training process and reduce the computational burden during the chiller fault diagnosis, the standard ELM
+       which owns fast learning speed and excellent generalization performance is employed as the basic fault diagnosis model. To be
+       specific, every imbalanced dataset of the C kinds fault patterns is regarded as the benchmark dataset, hence the developed HRT
+       method is repetitively performed to acquire a total of C different rebalanced training datasets, each of which also involves C
+       classes balanced fault pattern datasets. Afterward, to lay a solid foundation for the subsequent selective ensemble learning based
+       fault diagnosis scheme, the number of C various basic ELM diagnosis models are respectively constructed on these C different
+       rebalanced training datasets.
+   (3) To further strengthen the fault diagnosis effectiveness of the chiller and alleviate the computation complexity, a modified se­
+       lective ensemble learning strategy is established by distinguishing the different diagnosis capabilities of the multiple basic ELM
+       models trained on the diverse rebalanced training datasets. The nearest neighbors of the fault snapshot sample are first searched
+       in the verification dataset to establish the neighbor subset. After the basic ELM models with the superior fault diagnosis per­
+       formance for the neighbor subset are picked out, a weight factor is further defined to construct the final ensemble ELM based
+       fault diagnosis model. At last, the pattern of the fault snapshot sample is identified by the developed selective ensemble ELM
+       model according to the weighted voting mechanism.
+   (4) Detailed experiments of the proposed hybrid resampling based improved ELM (HRIELM) based fault diagnosis scheme is carried
+       out on the ASHRAE RP-1043 datasets, and abundant comparisons with the interrelated fault diagnosis methods are given out.
+
+
+                                                                    2
+H. Zhang et al.                                                                                  Journal of Building Engineering 70 (2023) 106338
+
+
+        The remarkable capability of the developed HRT to handle the chiller’s imbalanced data is first proved in our experiments.
+        Afterward, the experiments and comparisons exhibit that the presented HRIELM scheme achieves outstanding fault diagnosis
+        effectiveness and reveals significant performance improvements in comparison with the interrelated approaches.
+    The structure of this paper is formulated as: Section 2 gives out a detailed literature review of our work, while Section 3 introduces
+the operating principle of the chiller and analyzes the problem of the chiller’s data imbalance in detail. The developed HRT algorithm
+is described elaborately in Section 4. The presented selective ensemble learning based ELM diagnosis model is comprehensively
+constructed in Section 5. Section 6 provides the suggested HRIELM based fault diagnosis scheme for the chiller under imbalanced data
+conditions. Detailed experimental results are carried out in Section 7. Finally, the conclusions are provided in Section 8.
+
+2. Background
+    In recent years, various fault diagnosis techniques have been applied to the HVAC system to guarantee efficient building energy
+utilization and favorable occupant comfort [17,18]. The existing fault diagnosis techniques are primarily classified into model [19,20]
+and data-driven based approaches [21–23]. As a typical fault diagnosis technique, the model based approaches have been studied by
+many researchers to maintain the HVAC system running normally. For instance, based on the P&ID control strategy and the model
+architecture, Taal et al. [24] developed a novel diagnostic Bayesian network to recognize the faults of the HVAC system automatically.
+Fan et al. [25] extracted the practical physical operation information from the factory installed sensors to establish the modified
+support vector machine (SVM) based diagnosis models for recognizing the chiller’s seven typical faults. By integrating an advanced
+Bayesian nonlinear state estimation technique with a back-smoothing method, Bonvini et al. [26] proposed an operational mechanism
+based model to detect the energy and hydraulic faults of the chiller. However, the model based fault diagnosis methods commonly have
+difficulty in acquiring quantitative physical knowledge of the operation status of the chiller, air handling unit (AHU), and other
+components of the HVAC system. Besides, the performance of the model based fault diagnosis methods is often affected by the strong
+nonlinearity and time-varying dynamics of the chiller. Thus, these model based approaches would result in the unsatisfied fault
+diagnosis performance for the complex, large-scale HVAC system.
+    A large number of data-driven based approaches have been suggested to diagnose the faults of the chiller recently. For example,
+with the help of adapting decision boundaries, Van et al. [27] combined the transfer component analysis and the SVM to transmit the
+knowledge among different chillers. By treating the fault diagnosis task as a multi-class classification problem, Li et al. [28] suggested
+an improved linear discriminant analysis method to realize the chiller fault diagnosis. Liu et al. [29] proposed a new association al­
+gorithm based fault diagnosis method to extract the operational rules of the chiller by association rule mining. In addition, we have
+conducted some studies to detect and recognize the faults of the chiller and AHU by combining the slow feature analysis based ap­
+proaches with the deep learning based approaches [30–34]. Based on the above reviewed literature, it can be found that the
+data-driven based approaches have been extensively utilized to identify the chiller fault. However, during the actual running of the
+chiller, historical fault pattern datasets are often imbalanced, which simultaneously contain the majority class datasets and the mi­
+nority class datasets. Under the chiller’s imbalanced data environments, these data-driven based approaches have the common
+shortcoming that they tend to maximize the overall fault diagnosis accuracy while ignoring the chiller’s minority class fault patterns
+[3].
+    To strengthen the diagnosis effectiveness under the imbalanced data conditions, the studies from the levels of data sampling [35],
+cost-sensitive learning [36], bagging, and boosting based ensemble [37] have been reported in recent years. At the data sampling level,
+over-sampling and under-sampling are the most popular approaches to tackle the problem of imbalanced data. The under-sampling
+and over-sampling approaches transform the imbalanced datasets into the balanced datasets by removing the majority class sam­
+ples or augmenting the minority class samples. As a classical over-sampling method, the synthetic minority over-sampling technique
+(SMOTE) and its improved versions are becoming more and more popular. Particularly, by combining the SMOTE with random search
+algorithm and gradient boosting tree method, Chen et al. [6] presented an improved ensemble classifier to achieve efficient and ac­
+curate rock trace identification. To consider the distribution information of the training data and exploit its internal structure, Zhang
+et al. [7] discussed an instance weighted SMOTE method with enhanced robustness by indirectly utilizing the data distribution.
+Although the SMOTE based over-sampling approaches are widely utilized to handle the imbalanced data, the existing methods may
+suffer from the limitations of overlapping synthetic samples and the distribution marginalization, i.e., the boundary between majority
+class samples and minority class samples is blurred. Therefore, the improvements for the SMOTE based over-sampling methods need to
+be made to generate high quality samples to augment the minority classes.
+    Random under-sampling is another extensively adopted algorithm to settle the issue of data imbalance at the data sampling level.
+The random under-sampling algorithm rebalances the data samples in majority and minority classes by randomly decreasing the
+samples in majority classes according to the number of samples in a benchmark class. Lu al et [8]. suggested a new fault diagnosis
+method to distinguish the motor bearings’ operation conditions by under-sampling the vibration signals. In order to improve the
+prediction of extracellular matrix proteins, Kabir et al. [9] utilized a modified asymmetric under-sampling approach to avoid the class
+imbalance problem, and then adopted the SVM to perform cross validation for each dataset. Nevertheless, because the datasets are
+rebalanced by eliminating some samples from the majority classes, the random under-sampling algorithm may ignore a large amount
+of useful and meaningful information of the majority classes.
+    Based on the rebalanced datasets of the chiller, the ELM based fault diagnosis algorithms have attracted more and more attention
+due to their fast learning speed and good generalization performance [10,11]. For instance, to improve the diagnosis performance of
+the vibration signal, Wang et al. [38] put forward an optimized extreme leaning machine by integrating with an adaptive weight
+
+
+                                                                    3
+H. Zhang et al.                                                                                       Journal of Building Engineering 70 (2023) 106338
+
+
+particle swarm optimization model. Yan et al. [39] combined the modified Kalman filter with an improved ELM model to diagnose the
+AHU system fault by classifying the time series. Based on an enhanced kernel ELM with the random features representation, Liu et al.
+[12] presented a new network based method to identify the misuse of computer systems. Although various applications have displayed
+the decent diagnosis results of the ELM based approaches, the single ELM model’s diagnosis accuracy and robustness are need to be
+enhanced.
+    By fusing multiple basic ELM models, the ensemble learning strategy has been discussed to improve the performance of the single
+ELM based fault diagnosis models [12–14]. Nevertheless, with the increment of the integrated basic ELM models, it becomes more
+difficult to distinguish the basic ELM diagnosis models’ performance differences, and the final ensemble model will possess the greater
+computation complexity. In recent years, the selective ensemble learning approaches have been studied to handle the shortcomings of
+the traditional ensemble learning algorithms. For example, by building a novel soft selection strategy to weight several machine
+learning models, Lv et al. [14] established an efficient model combination process and evaluated the validation accuracy of the model
+ensemble. To deal with the data’s dynamic characteristics changing along with time, Jin et al. [15] discussed a modified forecasting
+method using the selective ensemble to perform wind power forecasting. Li et al. [16] suggested a beetle antennae search algorithm
+based on an improved selective ensemble technique to diagnose the rolling bearing faults. Therefore, based on the advantages of
+selective ensemble learning, an improved ELM fault diagnosis model is urgent to be established for recognizing the chiller’s faults.
+
+3. The operating mechanism and imbalanced data of the chiller
+    To promote understanding of the presented imbalanced data based fault diagnosis scheme for the chiller, the operating mechanism
+of the chiller is first explained and the data imbalance phenomenon is then revealed.
+
+3.1. Introduction of the chiller
+    As the major constituent part of the HVAC, the chiller is to adjust the temperature of the room through the circulation of the
+refrigerant. Fig. 1 gives out the refrigerant flow path in the chiller [4,32]. As displayed in Fig. 1, The chiller system is formed by four
+basic components, which are the compressor, condenser, evaporator, and throttle valve. Among them, the compressor is the core
+component of the chiller, and its function is to provide energy for the circulation of the chiller. The condenser and evaporator are two
+heat exchangers which responsible for the heat exchange between the chiller system and the environment. The throttle valve connects
+the condenser and the evaporator, which can reduce the pressure and the temperature of the liquid in the refrigeration pipeline. To sum
+up, the chiller continuously exchanges heat with the indoor and outdoor environments by the flow of refrigerant in the major
+components.
+    In the actual running of the chiller, the duration of normal operation is much longer than that of the operation with faults. Even the
+faults arise, some specific fault patterns own much higher occurrence frequencies than that of other fault patterns. Therefore, the
+sufficient fault pattern samples are always unavailable and the numbers of different fault pattern samples are usually imbalanced, i.e.,
+at least one fault pattern dataset (the minority class) is usually outnumbered by the other fault pattern datasets (the majority class).
+
+3.2. The chiller’s data imbalance problem
+   At present, more and more researchers have employed the data-driven based approaches to diagnosis the faults of the chiller.
+However, in the practical scenarios, the problem of the chiller data imbalance severely affects the fault identification accuracies of the
+minority fault patterns, thus having a negative impact on the traditional fault diagnosis method [40,41]. The phenomenon of data
+imbalance is caused by (i) the fault pattern samples are more insufficient compared with the normal operation samples; (ii) the
+numbers of some fault pattern datasets are far less than that of other fault pattern datasets due to the different occurrence frequencies.
+To be specific, the primary reasons for inducing the imbalanced data of the chiller are analyzed as follows [41].
+
+
+
+
+                                               Fig. 1. The schematic diagram of the chiller [4,32].
+
+
+                                                                        4
+H. Zhang et al.                                                                                    Journal of Building Engineering 70 (2023) 106338
+
+
+   (1) During the running of the chiller, the duration of normal operation is much longer than that of the operation with faults. Even if
+       a fault occurs in the chiller, the fault will be repaired timely to bring the chiller back to normal operation. The above two aspects
+       make it difficult to collect the adequate fault pattern data samples.
+   (2) In the real practical operation, if the rapid hard faults arise in the components of the chiller, such as the compressor, evaporator,
+       and so on, will bring about the chiller shut down completely soon. Although the fault pattern data can be achieved by the
+       experiments in the laboratory, the experiments not only need large economic costs but also give rise to potential danger.
+       Therefore, the enough fault pattern data samples for the components of the chiller are not always available.
+   (3) In the case of the faults happening, different fault patterns have different occurrence frequencies. Because of the unique
+       operation characteristics of the chiller, some specific fault patterns possess much higher occurrence frequencies than that of
+       other fault patterns. For instance, the occurrence probability of the reduced condenser water flow fault pattern is generally
+       much larger than the occurrence probability of the refrigerant leak fault pattern.
+   (4) For the fault patterns with different amplitudes, the probabilities of faults with large amplitudes are always lower than that of
+       the faults with small amplitudes. Hence, the samples of the faults with large amplitude are more difficult to be measured and
+       collected. For example, the samples of the Excess oil fault pattern with 50% amplitude are more difficult to be gathered than that
+       of the Excess oil fault pattern with 14% amplitude, however, the former is more harmful to the chiller.
+   (5) Before building the fault diagnosis models, the actually collected datasets are usually needed to discern the steady states and
+       eliminate the outliers for the data preprocessing. However, the data preprocessing procedure is generally uncontrollable, which
+       leads the balanced datasets to be imbalanced to a certain extent. The traditional chiller fault diagnosis models are constructed
+       on the balanced fault pattern datasets by maximizing the overall diagnosis accuracy.
+
+   All in all, in the actual operation of the chiller, the observed and stored process datasets are often imbalanced due to multiple
+reasons. Nevertheless, most existing fault diagnosis models cannot be trained well on the imbalanced datasets to identify the fault
+patterns of the minority class snapshot samples. Therefore, according to the practical running of the chiller, it is very significant to
+investigate an improved chiller fault diagnosis approach under the imbalanced data conditions.
+
+4. The developed HRT approach for handling the imbalanced data
+    In the practical operation, the historical fault pattern datasets of the chiller are always imbalanced due to the complex running
+characteristics. However, most traditional fault diagnosis models cannot be well trained on the imbalanced datasets of the chiller,
+which would result in much higher fault diagnosis error rates for the minority fault patterns. To figure out the problem of data
+imbalance, in our work, a new HRT method is constructed to rebalance the imbalanced historical fault pattern datasets of the chiller by
+combining the SMOTE over-sampling and the random under-sampling. In the beginning, the original imbalanced datasets of the chiller
+are supposed to involve the C kinds of the fault pattern. In the developed HRT method, one of the C classes imbalanced fault pattern
+subsets is determined as the benchmark dataset by the users. For the minority class datasets whose numbers of the samples are smaller
+than that of the benchmark dataset, the SMOTE over-sampling is applied to augment the samples to enlarge the minority datasets to be
+balanced. Besides, the artificially augmented samples have an identical clustering effect with the original minority datasets. For the
+majority class datasets whose numbers of the samples are larger than that of the benchmark dataset, the random under-sampling is
+adopted to randomly eliminate the samples to shrink the datasets. In this way, the imbalanced fault pattern datasets can be rebalanced
+to have the same number of samples as that of the benchmark dataset. The schematic diagram of hybrid sampling is shown in Fig. 2.
+
+4.1. The SMOTE over-sampling method
+    The goal of the SMOTE over-sampling algorithm is to synthesize new samples through a linear combination of the minority samples
+and their neighboring samples, so as to expand the number of samples in the minority dataset [6,7]. The flowchart of the SMOTE
+over-sampling algorithm is displayed in Fig. 3.
+    Let the dataset X0 containing n0 data samples indicates the determined the benchmark dataset in the C classes imbalanced datasets,
+and the current resampling minority dataset is expressed as the Xmin involving nmin data samples. The new artificial sample xnew (j), j =
+1, 2, ⋯, n0 − nmin is produced by randomly combining the original sample xi in the dataset Xmin with its nearest neighbors. The nearest
+neighbor samples of the original sample xi can be sought out by calculating the Euclidean distance d(xi , xf ) as follows.
+
+
+
+
+                                                  Fig. 2. The flowchart of the developed HRT.
+
+
+                                                                      5
+H. Zhang et al.                                                                                                    Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                                                    Fig. 3. The schematic diagram of the SMOTE over-sampling method.
+
+
+         (       ) √̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅
+                    ⃦               ⃦2
+        d xi , xf = ⃦xi − xf ⃦ , f = 1, 2, ⋯, nmin − 1                                                                                                        (1)
+
+where xf represents the sample in the dataset Xmin except for the sample xi .
+   After the Euclidean distances between the sample xi and the samples xf , f = 1, 2, ⋯, nmin − 1 are computed, these Euclidean dis­
+tances are sorted from small to large. In this manner, the distance vector D constructed utilizing the rearranged Euclidean distances is
+expressed as
+
+        D = [d(xi , x1 ), d(xi , x2 ), ⋯, d(xi , xk ), ⋯, d(xi , xnmin − 1 )]T                                                                                (2)
+
+where x1 indicates the sample in the minority dataset X min corresponding to the smallest Euclidean distance d(xi , x1 ), x2 denotes the
+sample in the dataset Xmin with the second smallest Euclidean distance d(xi , x2 ), and so on.
+   The samples xk , k = 1, 2, ⋯, K corresponding to the first K smallest Euclidean distances d(xi , x1 ), d(xi , x2 ), ⋯, d(xi , xK ) are chosen as
+the K nearest neighbor samples of the sample xi . Subsequently, the mean value xk of the K nearest neighbors is calculated as
+
+               1 ∑K
+        xk =         xk                                                                                                                                       (3)
+               K k=1
+
+    After that, the new artificial sample xnew (j) of the original sample xi is reconstructed as
+        xnew (j) = xi + rand(0, 1) ·|xi − xk |                                                                                                                (4)
+
+where the symbol rand(0, 1) indicates random distribution on the interval of [0, 1].
+   Note that, in the case of the SMOTE over-sampling algorithm, the relationship between the benchmark dataset samples n0 and the
+current minority dataset samples nmin can be expressed as
+        n0 = a · nmin + b                                                                                                                                     (5)
+
+        = 0 and b < nmin .
+where a ∕
+  Based on Eq. (5), there are two cases to randomly synthesize n0 − nmin samples, which are formulated as follows.
+   (1) Under the circumstance of b = 0, all the nmin samples in the current minority dataset are adopted to randomly reconstruct the
+       n0 − nmin samples by repeating the above introduced procedure of the SMOTE over-sampling.
+                        = 0, the original b samples are first stochastically selected from the current minority dataset. Then, the selected
+   (2) In the case of b ∕
+       original b samples are utilized to produce the new artificial synthesized b samples and the nmin current minority dataset samples
+       are finally employed to randomly generate the nmin · (a − 1) by repeating the procedure of the SMOTE over-sampling.
+
+
+4.2. The random under-sampling algorithm
+     When the number of samples nmax in the current resampling dataset Xmax is larger than the samples n0 in the benchmark dataset X 0 ,
+i.e., nmax > n0 , the random under-sampling algorithm [8,9] exhibited in Fig. 4 is carried out to randomly eliminate some samples in the
+
+                                                                                   6
+H. Zhang et al.                                                                                                 Journal of Building Engineering 70 (2023) 106338
+
+
+current majority class dataset X max .
+    All the nmax samples in the current majority dataset Xmax = [xmax (1), xmax (2), ⋯, xmax (nmax )]T are first stochastically rearranged to
+establish a new dataset Xnew
+                          max .
+
+        Xnew
+         max = [xmax (r(1)), xmax (r(2)), ⋯, xmax (r(nmax ))]
+                                                             T
+                                                                                                                                                           (6)
+
+where the vector xmax (i), i = 1, 2, ⋯, nmax represents the i-th sample in the majority class dataset Xmax . The vector r =
+[r(1), r(2), ⋯, r(nmax )]T denotes a random vector whose elements r(i), i = 1, 2, ⋯, nmax are the randomly selected integers form the in­
+terval of [1, nmax ] without repetition.
+    What’s more, the random vector r is defined as follows.
+        r = randperm(nmax , nmax )                                                                                                                         (7)
+
+where the randperm(nmax , nmax ) means to generate the nmax random integers form 1 to nmax without repetition.
+  Then, the first n0 samples in the dataset X new                                                  reb
+                                               max remained to construct the rebalanced dataset X max , while the other superfluous
+samples are removed. In particular, the rebalanced dataset Xreb
+                                                            max is reconstructed as
+
+        Xreb
+         max = [xmax (r(1)), xmax (r(2)), ⋯, xmax (r(n0 ))]
+                                                           T
+                                                                                                                                                           (8)
+
+4.3. The implementation of the developed HRT technique
+    As described in Fig. 5, the detailed procedure of the proposed HRT approach is given out in our work. The HRT is indeed an
+integration of the SMOTE over-sampling and the random under-sampling, which has the ability to effectively settle the problem of the
+imbalanced fault pattern datasets. To be specific, the benchmark dataset X0 with the number of samples n0 is first selected from the C
+classes imbalanced fault pattern datasets. Afterward, the number of samples ni in the current i-th resampling dataset Xi is compared
+with the number of samples n0 . If ni is smaller than n0 , the current resampling dataset Xi is regarded as the minority class dataset Xmin ,
+and the SMOTE over-sampling is subsequently utilized to generate the n0 − nmin artificially synthesized samples. If ni is larger than n0 ,
+the current resampling dataset Xi is identified as the majority class dataset X max , and the random under-sampling is then employed to
+randomly wipe off the nmax − n0 samples. The above procedures are repeated C − 1 times to rebalance the C kinds of the imbalanced
+fault pattern datasets.
+
+5. The proposed ELM diagnosis model based on an improved selective ensemble learning strategy
+    After the imbalanced fault pattern datasets are rebalanced, the ELM network is adopted to diagnose the faults of the chiller on
+account of the ELM’s fast learning speed and good generalization ability. Whereas, because the fault diagnosis accuracy and robustness
+of the single ELM model are unsatisfied, in our work, the number of C various ELM basic models are built on the C diverse rebalanced
+training datasets. Specifically, every fault pattern dataset in the C classes imbalanced datasets is determined as the benchmark dataset
+X0 , hence the developed HRT method is repeated C times to achieve a total of C rebalanced training datasets. It should be noted that
+each rebalanced training dataset still includes the C kinds of fault pattern subsets. To effectively choose the basic ELM models owning
+the superior fault diagnosis performances from the number of C basic ELM models, a revised ensemble learning ELM based scheme is
+established with the aid of putting forward a novel selective ensemble learning strategy in this paper. At last, the selected multiple
+basic ELM models are integrated together to construct the final ensemble diagnosis model, for the purpose of identifying the pattern of
+the fault snapshot dataset. In addition, the improved selective ensemble learning based ELM diagnosis strategy also contributes to
+reducing the computation complexity of the final ensemble model. The detailed schematic diagram of the proposed selective ensemble
+learning based ELM diagnosis strategy is displayed in Fig. 6.
+
+5.1. The multiple basic ELM models training
+    In this paper, the developed HRT approach is implemented repetitively to resample a total of C rebalanced training datasets by
+
+
+
+
+                                                Fig. 4. The flowchart of the random under-sampling algorithm.
+
+
+                                                                             7
+H. Zhang et al.                                                                                              Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                                             Fig. 5. The detailed procedure of the proposed HRT approach.
+
+
+
+
+                          Fig. 6. The schematic diagram of suggested selective ensemble learning based ELM diagnosis strategy.
+
+
+regarding every dataset in the C kinds of imbalanced fault pattern datasets as the benchmark dataset. Subsequently, as illustrated in
+Fig. 7, the number of C various basic ELM models are trained on these rebalanced training datasets to manage the drawbacks of single
+ELM model’s unsatisfactory fault diagnosis results and robustness. Based on a specific rebalanced training dataset, one of the C various
+basic ELM fault diagnosis models is built as follows.
+   As shown in Fig. 8, the ELM is a special single hidden layer feed-forward neural network (SLFNs) with an input layer, output layer,
+and hidden layer, which can provide good classification performance at extremely fast training speed [42].
+    For the specific rebalanced training dataset {X, Y} = {xi , yi }Ni=1 involving the C kinds of fault pattern subsets, where N is the number
+of the whole samples, xi indicates a m-dimensional data sample and yi represents a category attribute vector. The relationship between
+the weight vector βi connecting the i-th hidden node to output nodes, the ELM’s output oj and the activation function G(wi · x +bi ) is
+expressed as
+
+
+
+
+                                                                           8
+H. Zhang et al.                                                                                                     Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                                           Fig. 7. The flowchart of training the multiple basic ELM fault diagnosis models.
+
+
+
+
+                                                         Fig. 8. The structure diagram of the basic ELM model.
+
+
+        ∑
+        L
+                   (            )
+               βi G wi · xj + bi = oj , j = 1, ⋯, N                                                                                                            (9)
+         i=1
+
+
+where L denotes the number of nodes in the hidden layer, wi indicates the weight vector connecting input nodes to the i-th hidden node,
+and bi indicates the bias of the i-th hidden node.
+    A notable feature of the ELM is that the weights wi and the bias bi could be obtained randomly in the light of continuous probability
+distribution. Particularly, the activation function G(wi · x +bi ) is selected as the sigmoid function in this paper, which is formulated as
+                                       1
+        G(wi · x + bi ) =                                                                                                                                     (10)
+                            1 + exp( − (wi · x + bi ))
+
+    To obtain much better classification effectiveness, the ELM is further enhanced to acquire both the smallest training error ‖O − Y‖2
+and the smallest output weights norm ‖β‖2 . The O = [o1 , o2 , ⋯, oN ]T ∈ RN×n1 indicates the output of the ELM, Y = [y1 , y2 , ⋯, yN ]T ∈ RN×n1
+represents the target matrix of the rebalanced training dataset X and n1 denotes the dimension of the output layer.
+   Therefore, the optimization objective of ELM is rewritten as [43].
+
+
+                                                                                  9
+H. Zhang et al.                                                                                                    Journal of Building Engineering 70 (2023) 106338
+
+                     ⃦ ⃦2
+               ̃ ∑N ⃦ ⃦
+             2 C     ⃦ ⃦
+         ‖β‖ +       ⃦ ei ⃦
+               2 i=1 ⃦ ⃦                                                                                                                                     (11)
+
+         s. t. h(xi )β = yi T − ei T , i = 1, 2, ..., N
+
+where ei represents the error vector of the output nodes related to the i-th data sample xi , and C
+                                                                                                  ̃ indicates a penalty coefficient
+associated with errors.
+   From the objective function of the ELM, the smaller the training error and the weight norm are, the better the generalization
+performance of the ELM tends to possess. Therefore, the ELM’s objective function provides a solid theoretical foundation for good
+generalization performance.
+   According to the theory of Karush-Kuhn-Tucker (KKT), the objective function of the ELM is equivalent to the dual optimization
+problem of the following equation.
+                                ⃦
+                          ̃ ∑N ⃦
+                                ⃦ 2 ∑ (
+                                          N
+                   1      C                                           )
+       LELM = min ‖ β‖ +2
+                                ⃦ ei ‖ −     αi h(xi )β − yi T + ei T                                                          (12)
+              β,αi 2      2 i=1 ⃦        i=1
+
+
+where αi indicates the Lagrange multiplier.
+  The output weight vector β can be obtained by solving the above optimization problem. After the vector β is determined, the ELM’s
+output matrix O = [o1 , o2 , …oN ]T of the rebalanced training dataset X can be calculated as
+        O = Hβ                                                                                                                                               (13)
+
+where H represents the mapping matrix that randomly transforms the original rebalanced training dataset X into high-dimensional
+nonlinear space.
+           ⎡        ⎤ ⎡                                       ⎤
+             h(x1 )       G(w1 · x1 + b1 ) ⋯ G(wL · x1 + bL )
+      H=   ⎣   ⋮    ⎦ = ⎣        ⋮         ⋯        ⋮         ⎦                                                            (14)
+             h(xN )       G(w1 · xN + b1 ) ⋯ G(wL · xN + bL ) N×L
+
+In our work, we repeat the above recommended training procedure of the ELM on the number of C diverse rebalanced training datasets
+to gain the C various basic ELM models.
+
+
+5.2. The improved selective ensemble learning strategy
+    Due to the discrepant fault diagnosis performance of the C basic ELM models founded on the various rebalanced training datasets,
+we come up with an improved selective ensemble learning strategy to pick out the basic ELM models with superior diagnosis capa­
+bilities to set up a novel ensemble ELM based fault diagnosis scheme for the chiller. As exhibited in Fig. 9, the k nearest neighbor
+samples of the current fault snapshot sample xt are searched in the verification dataset XV which also contains the C classes fault
+pattern subsets, then all the C basic ELM models are applied to diagnose the fault patterns of the determined k nearest neighbors related
+
+
+
+
+                                         Fig. 9. The schematic diagram of the improved selective ensemble learning strategy.
+
+
+                                                                                 10
+H. Zhang et al.                                                                                                 Journal of Building Engineering 70 (2023) 106338
+
+
+to the xt . Afterward, the basic ELM fault diagnosis models whose diagnosis accuracies are greater than the average accuracy of all the
+basic ELM models are chosen and adopted to construct the final ensemble ELM model according to the weight factor defined in our
+work. The constructed ensemble ELM based model is eventually employed to recognize the pattern of the fault snapshot dataset by
+virtue of the weighted voting mechanism, which reveals the remarkable improvement of the fault diagnosis effectiveness as well as the
+significant reduction of the computation complexity.
+
+5.2.1. Select the basic ELM model with remarkable diagnosis performance
+   Given the number of C basic ELM fault diagnosis models and the validation dataset X V consisting of the C kinds of fault patterns, the
+specific implementation steps of the proposed selective ensemble learning strategy are revealed in Fig. 10.
+   For the current fault snapshot sample xt , the Euclidean distances between the sample xt and all the samples in the verification
+dataset XV = [xv (1), xv (2), ⋯, xv (NV )]T are calculated as
+                       √̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅̅
+       d(xt , xv (i)) = ‖xt − xv (i)‖2 , i = 1, 2, ⋯, NV                                                                                                  (15)
+
+where NV represents the number of samples in the verification dataset X V .
+    After the NV Euclidean distances d(xt , xv (i)), d(xt , xv (2)), ⋯, d(xt , xv (NV )) are obtained, these Euclidean distances are sorted from
+small to large. The samples xv (k), k = 1, 2, ⋯, K2 in the dataset XV corresponding to the first K2 smallest Euclidean distances are
+selected to establish the nearest neighbor sample subset Xsub . Note that the fault pattern of these K2 samples in the verification dataset
+XV is known in advance.
+    In accordance with the k-nearest neighbor algorithm [43], the current fault snapshot sample xt can be represented by the weight of
+its K2 nearest neighbors in the established subset Xsub . Consequently, the fault diagnosis result of the sample xt is equivalent to the fault
+pattern identification results of its K2 neighbors in the neighbor subset X sub .
+    Based on the above principle, all the C various basic ELM fault diagnosis models are utilized to recognize the fault pattern of the K2
+nearest neighbors in the subset Xsub . After that, the average fault diagnosis accuracy ACCaverage of the C basic ELM models is computed
+as
+
+                       1 ∑C
+        ACCaverage =         ACC(i)                                                                                                                       (16)
+                       C i=1
+
+where the ACC(i), i = 1, 2, ⋯, C denotes the fault diagnosis accuracy of the neighbors in the subset Xsub for the i-th basic ELM model.
+    The P basic ELM model whose fault diagnosis accuracy ACC(p), p = 1, 2, ⋯, P is larger than the average accuracy ACCaverage is
+selected to constitute the final ensemble ELM fault diagnosis model.
+
+5.2.2. Identify the fault pattern of the snapshot sample
+   As is known to all, the closer distances the data samples reveal, the higher similarities these data samples have. As a consequence,
+we determine the weights of the P selected basic ELM fault diagnosis models by jointly considering the fault pattern identification
+
+
+
+
+                                 Fig. 10. The procedure of the superior basic ELM fault diagnosis models selection strategy.
+
+
+                                                                             11
+H. Zhang et al.                                                                                                   Journal of Building Engineering 70 (2023) 106338
+
+
+results of the samples in the neighbor subset Xsub as well as the distances between the fault snapshot sample xt and its K2 nearest
+neighbors. Specifically, to integrate the final ensemble ELM based fault diagnosis model, the weight factor αpt of the p-th chosen basic
+ELM model is calculated in our work as follows:
+                      (          )
+             1 ∑ K2
+                     I oiv , yiv
+       αpt =                                                                                                                        (17)
+             Dt i=1 d(xt , xv (i))
+
+                                                                                                                                            p           ∑P
+where d(xt , xv (i)) denotes the Euclidean distance between the fault snapshot sample xt and its i-th nearest neighbors xv (i). Dt =   p=1 αt
+                                  i                                                                                    i
+indicates the normalized factor, yv represents the real category label vector of the i-th nearest neighbor xv (i) and ov is the output of the
+p-th basic ELM model corresponding to the sample xv (i).
+    In addition, I(oiv , yiv ) is determined as follows in this paper.
+                      {                  (    )           (     )
+         (         )    1 ， if argmax oiv (j) = argmax yiv (j) ，j ∈ {1, ⋯, C}
+        I oiv , yiv =                                                                                                                                        (18)
+                                                 0 ，else
+
+where argmax(yiv (j)) represent the real category of the neighbor sample xv (i) and argmax(oiv (j)) indicate the p-th basic ELM’s fault
+pattern recognition result related to the neighbor sample xv (i).
+    At last, the pattern of the fault snapshot sample xt is identified by the finally constructed selective ensemble ELM based fault
+diagnosis model according to a weighted voting mechanism. Particularly, let opt (i) denote the value of the i-th output node in the p-th
+selected basic ELM model when classifying the sample xt , the category label of the fault snapshot sample xt is determined as
+                              ∑
+                              P
+        label(xt ) = argmax         αpt opt (i), i ∈ {1, ⋯, C}                                                                                               (19)
+                              p=1
+
+
+
+6. The presented HRIELM based chiller fault diagnosis in the imbalanced data environment
+   As illustrated in Fig. 11, our proposed HRIELM based chiller fault diagnosis scheme involves two portions: the HRT based multiple
+basic ELMs offline modeling stage and the pattern of fault snapshot sample online diagnosis stage. Specifically, the HRT based multiple
+basic ELMs offline modeling stage consists of the hybrid resampling module and the basic ELM models training module, while the
+pattern of fault snapshot sample online diagnosis stage contains the selective ensemble ELM model construction module and the fault
+pattern identification module. The details of the developed HRIELM based fault diagnosis strategy are expressed as follows.
+
+
+
+
+                                         Fig. 11. The flowchart of the suggested HRIELM based fault identification scheme.
+
+
+                                                                                12
+H. Zhang et al.                                                                                            Journal of Building Engineering 70 (2023) 106338
+
+
+6.1. The HRT based multiple basic ELMs offline modeling
+   (1) Collect the C kinds of historical fault pattern datasets to construct the original imbalanced dataset X imb and the validation
+       dataset XV . The two datasets X imb and XV are then normalized to be zero mean and unit variance according to the original
+       imbalanced dataset Ximb .
+   (2) Regard the i-th fault pattern dataset X Fi , i = 1, 2, ⋯, C as the benchmark dataset X 0 . The proposed HRT approach is adopted to
+       resample the original imbalanced dataset Ximb to achieve a rebalanced training dataset X reb (i).
+   (3) Repeat the HRT approach C times to obtain a total of C different rebalanced training datasets Xreb (1), X reb (2), ⋯, Xreb (C), by
+       treating each of the fault pattern datasets XF1 , XF2 , ⋯, XFC as the benchmark dataset.
+   (4) Train the number of C various basic ELM fault diagnosis models on these diverse rebalanced training datasets X reb (1), Xreb (2),
+       ⋯, Xreb (C) via implementing the training procedure of the ELM recommended in Section 5.1 C times.
+
+
+6.2. The pattern of fault snapshot sample online diagnosis
+   (1) Establish the neighbor subset X sub by searching the nearest neighbor samples of the fault snapshot sample xt in the verification
+       dataset XV .
+   (2) Employ all the C various trained basic ELM models to recognize the fault pattern of the samples in the neighbor subset X sub . The
+       average fault diagnosis accuracy ACCaverage is then calculated according to Eq. (16).
+   (3) Select the P superior basic ELM models whose fault diagnosis accuracies ACC(p), p = 1, 2, ⋯, P for the neighbor subset Xsub are
+       greater than the average accuracy ACCaverage .
+   (4) Determine the weights of the P selected basic ELM models based on Eq. (17) to integrate the final ensemble ELM based fault
+       diagnosis model. The pattern of the fault snapshot sample xt is identified by the finally constructed selective ensemble ELM
+       according to a weighted voting mechanism defined in Eq. (19).
+
+7. The experiments and comparisons on the chiller with imbalanced data
+7.1. Introduction of the experimental imbalanced data
+    In this paper, the American Society of Heating, Refrigerating, and Air-conditioning Engineers (ASHRAE) research project No. RP-
+1043 dataset available at https://www.techstreet.com/ashrae/searches/36470950 is utilized to prove the fault diagnosis capability of
+the developed HRIELM method in detail. The RP-1043 experimental dataset is a benchmark dataset, which is commonly adopted to
+examine the effectiveness of the fault identification approaches [32,40,44,45]. In order to reveal the influences of different fault
+severity levels on the fault diagnosis performance, the original dataset is further segmented into 4 diverse data subsets, i.e., Level-1,
+Level-2, Level-3, and Level-4, which represent the 4 different severity levels. The fault severity levels in these four subsets change from
+small to large, and each subset contains seven historical fault pattern datasets and one normal operation dataset. Detailed information
+on seven classic fault patterns under different severity levels and their abbreviations are shown in Table 1. According to references [32,
+44], 16 process variables are applied to perform the fault diagnosis of the chiller.
+    In our work, each fault severity level dataset consists of seven different fault pattern subsets shown in Table 1. To relieve the
+computation complexity, each fault pattern subset in the different severity level datasets is set to contain 1000 fault samples. For each
+fault severity level, 200 fault samples are randomly selected form each fault pattern subset to construct the corresponding fault
+snapshot dataset, and 80 samples are stochastically chosen form each fault pattern subset to establish the validation dataset. Therefore,
+there are respectively a total of 1400 fault samples and 560 fault samples in the whole seven fault snapshot datasets and the validation
+dataset for each fault severity level.
+    Moreover, to generate the original imbalanced dataset for each fault severity level, seven various historical fault pattern subsets
+with different sample numbers are produced from the remaining fault samples according to the data imbalance rate. Specifically, the
+minimum sample number of the minority historical fault pattern subset and the maximum sample number of the minority historical
+fault pattern subset are first calculated via a given data imbalance rate. Afterward, the sample numbers of other five imbalanced
+historical fault pattern subsets are stochastically determined within the range of the minimum and maximum sample numbers. Hence,
+in this paper, the fault sample numbers of the seven imbalanced historical fault pattern subsets in the original imbalanced dataset are
+changing along with the value of the data imbalance rate.
+
+Table 1
+Different fault patterns and four different fault severity levels.
+
+  Fault patterns                                                Four fault severity levels
+
+                                                                Level-1 (%)                  Level-2 (%)       Level-3 (%)                  Level-4 (%)
+
+  Condenser fouling (CF)                                        12                           20                30                           45
+  Excess oil (EO)                                               14                           32                50                           68
+  Refrigerant leak (RL)                                         − 10                         − 20              − 30                         − 40
+  Refrigerant overcharge (RO)                                   10                           20                30                           40
+  Reduced condenser water flow (FWC)                            − 10                         − 20              − 30                         − 40
+  Reduced evaporator water flow (FWE)                           − 10                         − 20              − 30                         − 40
+  Non-condensable gas in refrigerant (NC)                       1.0                          1.7               2.4                          5.7
+
+
+                                                                                     13
+H. Zhang et al.                                                                                     Journal of Building Engineering 70 (2023) 106338
+
+
+7.2. Comparative methods and parameters setting
+    For the sake of testifying the superiority of the developed HRIELM based fault diagnosis method, the bagging ELM (BGELM),
+boosting ELM (BTELM), weighted ELM (WELM), and boost WELM (BWELM) based methods are contrasted with the suggested HRIELM
+based approach. In the HRT based resampling method, the number of the nearest neighbor samples in the original minority classes is
+selected as five. The activation function of the HRIELM is chosen as sigmoid function according to references [12,13]. The number of
+HRIELM’s hidden neurons and its trade-off parameter are respectively selected from the ranges {1000, 2000, …, 9000} and.
+    {10− 5, 10− 4, …, 105} by the grid search according to the fault diagnosis performance. In our work, the number of hidden neurons
+and the trade-off parameter of the HRIELM are finally chosen as 2000 and 0.01, respectively. The number of basic ELM models is
+determined according to the number of fault pattern datasets in the original imbalanced dataset, thus seven basic ELM models are
+established for the subsequent presented selective ensemble learning strategy. Because 16 process variables are employed to carry out
+the fault diagnosis and the fault snapshot sample can be classified into seven fault patterns, hence 16 neurons and 7 neurons are
+respectively determined in each ELM’s input layer and output layer. For each fault snapshot sample, its five nearest neighbor samples
+are searched in the verification dataset to build the nearest neighbor subset.
+    To make a fair comparison, the sigmoid function is adopted as the activation function and the number of hidden neurons is set to be
+2000 in the BGELM, BTELM, WELM, and BWELM based approaches. The values of the trade-off parameter for the BGELM, BTELM, and
+BWELM are all set as 1, while the value of the trade-off parameter for the WELM method is chosen as 10 empirically. In addition, in the
+BTELM and BTWELM, seven ELM models are trained as the basic ELM models, and the rate of training subset to the original train
+dataset is set as 0.9. When the misclassification rate of the basic ELM models is less than 0.5, the weight of the basic ELM model is
+calculated and the sample distribution is updated at the same time; otherwise, the current ELM basic model will be abandoned. Besides,
+the maximum number of training times T is set as 50. In the BGELM, the number of basic ELM models is seven, and the rate of training
+subset to the original train dataset is set as 0.8.
+
+
+7.3. The fault diagnosis evaluation indices
+   In order to appraise the diagnosis performance of the proposed HRIELM method under the imbalanced data environments, the data
+imbalance rate (IR) index is introduced to measure the imbalance degree of the training datasets, which is expressed as
+               min(Ni )
+        IR =            , i = 1, 2, ⋯, C                                                                                                      (20)
+               max(Ni )
+
+where Ni , i = 1, 2, ..., C denotes the number of samples in each fault pattern dataset, min(Ni ) indicates the smallest number of samples in
+the minority fault pattern dataset, max(Ni ) represents the largest number of samples in the majority fault pattern dataset. Note that, for
+the original imbalanced chiller datasets with different values of the index IR, the minority and majority fault pattern datasets are
+randomly determined instead of remaining constant.
+   To assess the fault identification ability of the proposed HRIELM and other four compared methods, three different fault diagnosis
+accuracy indices, i.e., the fault diagnosis accuracy ACC(i), i = 1, 2, ..., C of the fault snapshot samples in the i-th fault pattern dataset,
+the overall fault diagnosis accuracy ACCtotal of all the fault snapshot samples in the C fault pattern datasets and the geometric mean of
+the fault diagnosis accuracy (G-mean), are employed.
+   Particularly, the index ACC(i) is defined as
+                    Ni (i)
+        ACC(i) =          , i = 1, ⋯, C                                                                                                       (21)
+                     Ni
+
+where Ni (i) represents the number of correctly identified fault snapshot samples in the i-th fault pattern dataset.
+   The index ACCtotal indicates the ratio of the number of all the correctly identified fault snapshot samples to the total number of the
+fault snapshot samples in the C fault pattern datasets, which is calculated as
+                 ∑C
+                    i=1 Ni (i)
+       ACCtotal = ∑   C                                                                                                             (22)
+                      i=1 Ni
+
+   Considering the data imbalance problem of the chiller, the geometric mean of the fault diagnosis accuracy, i.e., the G-mean, for
+every fault snapshot dataset computed in Eq. (23) is further utilized to estimate the fault diagnosis effectiveness. The index G-mean is
+
+Table 2
+Sample numbers in the imbalanced and rebalanced datasets for IR = 0.05.
+
+  Fault pattern                             Sample number in the imbalanced dataset                     Sample number in the rebalanced dataset
+
+  CF                                        63                                                          350
+  EO                                        700                                                         350
+  FWC                                       350                                                         350
+  FEW                                       246                                                         350
+  NC                                        36                                                          350
+  RL                                        381                                                         350
+  RO                                        367                                                         350
+
+
+                                                                           14
+H. Zhang et al.                                                                                                   Journal of Building Engineering 70 (2023) 106338
+
+
+one of the most commonly used indices to evaluate the fault identification performance under imbalanced data environments [46].
+                     (                 )1/C
+                         ∏
+                         C
+        G − mean =             ACC(i)                                                                                                                       (23)
+                         i=1
+
+
+7.4. Experimental results and comparisons
+7.4.1. The performance analysis of the developed HRT approach
+    In order to testify the resampling performance of our developed HRT method when handling the imbalanced datasets of the chiller,
+the original imbalanced dataset IR = 0.05 corresponding to the fault severity degree Level-1 is first adopted in our work. As previously
+mentioned, the fault patterns in the fault severity degree Level-1 can be considered as incipient faults because they have the smallest
+severity degree. Table 2 gives out the different numbers of the samples in the seven diverse fault pattern datasets. As displayed in
+Table 2, the dataset of fault pattern EO has the largest number of samples, which involves 700 samples. While the dataset of fault
+pattern NC with only 36 samples owns the smallest number of samples. Therefore, these original fault pattern datasets are extremely
+imbalanced. The dataset of fault pattern FWC containing 350 samples is regarded as the current benchmark dataset, and the HRT
+method is carried out only once to rebalance these imbalanced fault pattern datasets. From Table 2, after implementing the HRT
+method, the seven different fault pattern datasets are all resampled to be balanced datasets, each of which possesses 350 samples. To
+make a more intuitionistic comparison, the number of the samples in these seven different fault pattern datasets before and after
+performing the presented HRT approach are illustrated in Fig. 12.
+    To further confirm the superior effectiveness of the suggested HRT method for rebalancing the imbalanced datasets, the HRT
+resampling approach is compared with an adaptive synthetic (ADASYN) sampling approach [47,48] which is a typical over-sampling
+method in this section. Three imbalanced datasets of the fault patterns EO, NC, and FWC shown in Table 2 before and after rebalancing
+are visualized in the low-dimension space by taking advantage of the principal component analysis (PCA) technique. For the HRT
+resampling approach, the chosen three datasets of the fault patterns EO, NC, and FWC respectively represent the majority class,
+minority class, and the benchmark class datasets. Considering the ADASYN is an over-sampling method, the fault pattern EO dataset
+containing the largest number of samples is regarded as the benchmark class dataset and the fault patterns NC and FWC are both
+determined as the minority class datasets during the implementation of the ADASYN based data rebalancing algorithm. Fig. 13 reveals
+the data separation results of these three fault pattern datasets before and after resampling by the HRT and the ADASYN in the PCA
+principal component space. According to Fig. 13 (a), the three imbalanced fault pattern datasets before performing the HRT and the
+ADASYN are clearly separated from each other. From Fig. 13(b), we can see that the three rebalanced fault pattern datasets after
+performing the HRT are also projected far away from each other. Besides, these three rebalanced datasets are evidently overlapped
+together with the corresponding imbalanced datasets. As shown in Fig. 13 (c), although the rebalanced fault pattern FWC dataset is
+also overlapped together with the corresponding imbalanced datasets after implementing the ADASYN, many synthetic samples in the
+rebalanced fault pattern NC dataset clearly deviate from the original NC dataset. This phenomenon exhibits that the data rebalancing
+effect of the ADASYN is worse than that of the developed HRT. The scatter diagrams of these three fault pattern datasets before and
+after carrying out the HRT and the ADASYN, which achieved in the PCA residual space, are illustrated in Fig. 14. As can be seen from
+Fig. 14 (b), for the HRT, data separation and overlapping results of these three imbalanced and rebalanced fault pattern datasets are
+similar to the scatter diagrams exhibited in Fig. 13. However, for the ADASYN shown in Fig. 14 (c), most synthetic samples of the
+rebalanced fault patterns NC and FWC datasets are clearly separated from the corresponding imbalanced datasets, while only a small
+amount of the synthetic samples are overlapped together with the previous ones. This again manifests that the HRT outperforms the
+ADASYN in terms of rebalancing the imbalanced datasets.
+    Based on the experimental and comparative results given above, we can see that the developed HRT approach can not only balance
+the numbers of samples in the various fault pattern datasets but also keep the resampled samples having strong consistency with the
+samples in original datasets. As a consequence, the developed HRT approach is very suitable for solving the problem of the chiller’s
+data imbalance, which is significantly beneficial to the improvement of the chiller fault diagnosis capability.
+
+
+
+
+                               Fig. 12. The histogram of the sample numbers in the imbalanced and rebalanced datasets for IR = 0.05.
+
+
+                                                                                15
+H. Zhang et al.                                                                                             Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                          Fig. 13. The imbalanced and rebalanced datasets visualization in the PCA principle component space.
+
+
+7.4.2. Comparisons for the severity degree Level-1
+     Compared with the other fault severity degrees, the faults corresponding to the severity degree Level-1 are more different to
+identify because they are incipient faults. Therefore, the imbalanced chiller datasets with different values of the index IR are applied to
+prove the superior fault diagnosis ability of the developed HRIELM based scheme.
+7.4.2.1. The fault diagnosis performance comparisons for IR = 0.1. The imbalanced dataset with IR = 0.1 of the severity degree Level-1
+is first employed to evaluate the effectiveness of the HRIELM based scheme. The detailed sample numbers for this imbalanced dataset
+which consists of the seven diverse fault pattern subsets are given out in Table 3. According to the definition of the index IR, the
+minority and majority fault pattern subsets are randomly set up in imbalanced datasets with different index IR values. As exhibited in
+Table 3, the seven diverse fault pattern subsets own significantly different numbers of the fault samples. In particular, the fault pattern
+FEW subset contains 350 samples, which is the largest number of the fault samples. While the fault pattern EO subset has the smallest
+number of the fault samples, with only 36 samples. To settle the issue of data imbalance, we adopt the proposed HRT approach once to
+rebalance these seven imbalanced fault pattern subsets by treating the fault pattern CF subset as the benchmark dataset. Therefore, as
+shown in Table 3, every rebalanced fault pattern subset involves 205 fault samples. For a more intuitionistic comparison, the numbers
+of the samples in the imbalanced and rebalanced seven fault pattern subsets displayed in Table 3 are drawn as the bar charts in Fig. 15.
+     After the original imbalanced dataset is rebalanced utilizing the HRT by regarding each fault pattern subset as the benchmark
+dataset, the HRIELM based approach is further implemented to diagnose the fault patterns of the snapshot datasets. The fault diagnosis
+results of the HRIELM, BGELM, BTELM, WELM, and BWELM are calculated and exhibited in Fig. 16 and Table 4. Specifically, the
+confusion matrices of the five fault diagnosis approaches are displayed in Fig. 16.
+     As revealed in Fig. 16, the figures in the deep green squares denote the numbers of correctly identified fault snapshot samples, and
+the figures in the light green squares indicate the numbers of fault snapshot samples that are incorrectly identified. In the case of
+Fig. 16, the figures in the light green squares in the fourth column of Fig. 16(a), (b), (c), and (d) are much larger than those in the fourth
+column of Fig. 16 (e). Therefore, BGELM, BTELM, WELM, and BWELM are more likely than the HRIELM to diagnose the fault pattern
+
+
+                                                                          16
+H. Zhang et al.                                                                                                 Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                                   Fig. 14. The imbalanced and rebalanced datasets visualization in the PCA residual space.
+
+
+
+Table 3
+Sample numbers in the imbalanced and rebalanced datasets for IR = 0.1.
+
+  Fault patterns                             Sample number in the imbalanced dataset                                Sample number in the rebalanced dataset
+
+  CF                                         205                                                                    205
+  EO                                         36                                                                     205
+  FWC                                        280                                                                    205
+  FEW                                        350                                                                    205
+  NC                                         280                                                                    205
+  RL                                         132                                                                    205
+  RO                                         67                                                                     205
+
+
+
+
+                            Fig. 15. The histogram of the sample numbers in the imbalanced and rebalanced datasets for IR = 0.1.
+
+
+
+
+                                                                             17
+H. Zhang et al.                                                                                              Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+        Fig. 16. The confusion matrices for the five fault diagnosis methods when IR = 0.1, (a) BGELM, (b) BTELM, (c) WELM, (d) BWELM, (e) HRIELM.
+
+
+FEW as the other fault patterns by mistake. On the whole, Fig. 16(a), (b), (c), and (d) all exhibit more light green squares than Fig. 16
+(e), which demonstrates that the BGELM, BTELM, WELM, and BWELM incorrectly classified more snapshot samples of the seven fault
+patterns than the HRIELM.
+
+
+                                                                           18
+H. Zhang et al.                                                                                                   Journal of Building Engineering 70 (2023) 106338
+
+Table 4
+Comparison of the index ACC values for the five methods under IR = 0.1.
+
+  Diagnosis methods             CF                 EO                     FWC               FEW                 NC                 RL                  RO
+
+  BGELM                         93.00%             66.50%                 92.00%            89.50%              94.00%             77.00%              60.50%
+  BTELM                         87.50%             63.50%                 91.00%            88.50%              94.50%             81.00%              66.50%
+  WELM                          92.00%             73.00%                 77.50%            86.50%              93.50%             78.00%              68.00%
+  BWELM                         90.50%             77.00%                 80.50%            85.50%              95.00%             79.50%              72.00%
+  HRIELM                        96.00%             81.50%                 96.50%            97.50%              96.50%             90.00%              87.50%
+
+
+
+    The fault diagnosis accuracies of the HRIELM, BGELM, BTELM, WELM, and BWELM are further revealed in Table 4. As can be seen
+from Table 4, the index ACC values of the developed HRIELM are much larger than that of the other four approaches, especially for the
+fault patterns RO and EO which consist of the smallest numbers of the fault samples. Specifically, for the fault pattern RO, the value of
+the index ACC for the HRIELM method is 87.50%, which respectively increases by 27%, 21%, 19.5%, and 15.5% compared with that of
+the BGELM, BTELM, WELM, and BWELM. Similarly, the HRIELM’s index ACC value (81.5%) for the fault pattern EO is respectively
+15%, 18%, 8.5%, and 4.5% more than that of the BGELM, BTELM, WELM, and BWELM. For the convenience of comparison, the fault
+diagnosis accuracies of the five methods are visualized in Fig. 17. According to Fig. 17, the intuitionistic comparison proves the
+remarkable fault diagnosis effectiveness of the HRIELM over the BGELM, BTELM, WELM, and BWELM, in terms of identifying all the
+seven fault patterns.
+7.4.2.2. The fault diagnosis performance comparisons for IR = 0.6. Another imbalanced dataset with IR = 0.6 is further used to measure
+the performance of the five approaches. Table 5 reveals the sample numbers in the seven imbalanced fault pattern subsets in detail. As
+shown in Table 5, the fault pattern CF subset possesses the largest number of fault samples, i.e., the 360 samples. Nevertheless, there
+are only 216 fault samples in the fault pattern FWC subset, which is the smallest number of the samples. Before conducting the fault
+diagnosis, the presented HRT method is employed to figure out the imbalanced chiller dataset based on the fault pattern RL subset.
+Hence, each of the seven rebalanced fault pattern subsets retains 280 fault samples. To make a vivid analysis, the sample numbers in
+the seven fault pattern subsets before and after performing the HRT are illustrated in Fig. 18.
+    The developed HRIELM based method is further conducted to recognize the fault patterns of the snapshot datasets after the HRT is
+performed seven times to acquire the seven diverse rebalanced datasets. The confusion matrices of the HRIELM, BGELM, BTELM,
+WELM, and BWELM are shown in Fig. 19. According to Fig. 19, the figure in the deep green square of the second column in Fig. 19(e) is
+much larger than those of the second column in Fig. 19(a), (b), (c), and (d). This scene means that the proposed HRIELM correctly
+discerns more fault snapshot samples of the fault pattern EO than the other four diagnosis methods. In an overall view, there are more
+light green squares in Fig. 19(a), (b), (c), and (d) than those in Fig. 19(e), which illustrates that compared with the HRIELM, more fault
+snapshots samples are wrongly divided into the other different fault patterns by the BGELM, BTELM, WELM, and BWELM.
+    The fault diagnosis accuracies of these five approaches are also given out in Table 6. Among the five methods, the HRIELM achieves
+the largest values of the index ACC to diagnose all seven fault patterns. For instance, the HRIELM’s index ACC value for the minority
+class fault pattern FWC is 93.00%, which increases by 7%, 11.5%, 13.5%, and 10% in comparison with that of the BGELM, BTELM,
+WELM, and BWELM. To make an ulteriorly contrast, the fault diagnosis accuracies of the five identification approaches are represented
+graphically in Fig. 20. Therefore, the experimental results show that the presented HRIELM is superior over the BGELM, BTELM,
+WELM, and BWELM to identify the chiller’s faults under the imbalanced data environment with IR = 0.6.
+    In our work, each fault pattern subset’s sample number is randomly determined when the value of the index IR changes. For IR =
+0.1, the sample number of each fault pattern is randomly selected between 36 and 350, while for IR = 0.6, each fault pattern’s sample
+number is randomly chosen from 126 to 360. In the experiment, the sample numbers of the fault patterns CF, EO, NC, RL, and RO in the
+imbalanced dataset with IR = 0.6 are much larger than those in the imbalanced dataset with IR = 0.1. Hence, compared with the
+imbalanced dataset with IR = 0.1, the fault diagnosis accuracies of the above five fault patterns increase for the imbalanced dataset
+with IR = 0.6. However, when the value of the index IR rises from 0.1 to 0.6, the sample number of the fault pattern FWC reduces from
+
+
+
+
+                                            Fig. 17. The fault diagnosis accuracies of the five methods for IR = 0.1.
+
+
+                                                                                19
+H. Zhang et al.                                                                                               Journal of Building Engineering 70 (2023) 106338
+
+Table 5
+Sample numbers in the imbalanced and rebalanced datasets for IR = 0.6.
+
+  Fault patterns                             Sample number in the imbalanced dataset                               Sample number in the rebalanced dataset
+
+  CF                                         360                                                                   280
+  EO                                         218                                                                   280
+  FWC                                        216                                                                   280
+  FEW                                        325                                                                   280
+  NC                                         350                                                                   280
+  RL                                         280                                                                   280
+  RO                                         234                                                                   280
+
+
+
+
+                            Fig. 18. The histogram of the sample numbers in the imbalanced and rebalanced datasets for IR = 0.6.
+
+
+280 to 215 and the sample number of the fault pattern FEW decreases from 350 to 325. This leads to a slight reduction of the fault
+diagnosis accuracies for the fault patterns FWC and FEW in the imbalanced dataset with IR = 0.6.
+7.4.2.3. Comparisons of the indices ACCtotal and G-mean for the IR = 0.1 and IR = 0.6. To further test the diagnosis effectiveness of the
+chiller under the imbalanced data environments, the values of overall fault diagnosis accuracy ACCtotal and G-mean for the HRIELM,
+BGELM, BTELM, WELM, and BWELM under the conditions IR = 0.1 and IR = 0.6 are listed in Table 7. Although the sample numbers in
+the seven fault patterns are much more imbalanced when IR = 0.1 than those when IR = 0.6, the differences between the values of the
+HRIELM’s indices ACCtotal and G-mean are the smallest for IR = 0.1 and IR = 0.6 among the five approaches, which are respectively
+only 0.17% and 0.03%. Nevertheless, the differences between the indices ACCtotal and G-mean values are much larger for the BGELM,
+BTELM, WELM, and BWELM. Specifically, these differences are 1.09%, 0.84%, 0.49%, and 0.33% for IR = 0.1 and 0.12%, 0.15%,
+0.51%, and 0.19% for IR = 0.6. The slight differences between the HRIELM’s indices ACCtotal and G-mean for various IR values prove
+the superiority of the HRIELM for implementing the imbalanced data based chiller fault diagnosis.
+    To make a further comparison, the line charts of the indices ACCtotal and G-mean for the five fault diagnosis approaches under the
+conditions IR = 0.1 and IR = 0.6 are exhibited in Fig. 21. As can be seen from Fig. 21, the values of indices ACCtotal and G-mean of the
+five methods are significant improved when IR = 0.6 compared with those when IR = 0.1. To be specific, because the sample numbers
+in the seven fault patterns are seriously imbalanced when IR = 0.1, the values of the index ACCtotal for the BGELM, BTELM, WELM, and
+BWELM are very different from the values of the index G-mean. While the index ACCtotal value of the suggested HRIELM is still similar
+to the index G-mean value, due to the HRIELM’s excellent capability of managing the imbalanced data. On the contrary, the sample
+numbers in the seven fault patterns are relatively balanced when IR = 0.6. Consequently, the values of the index ACCtotal for the five
+methods are close to the values of the index G-mean. In particular, the HRIELM’s index ACCtotal value is almost completely coincided
+with the value of its G-mean.
+7.4.2.4. Comparisons of the fault diagnosis results with IR varying from 0.1 to 1. To inspect the fault identification effectiveness of the
+presented HRIELM method under different data imbalance rates, the recognition results of the HRIELM, BGELM, BTELM, WELM, and
+BWELM for the multiple imbalanced datasets with the index IR varying from 0.1 to 1 are computed and displayed in Table 8 and
+Fig. 22. As revealed in Table 8, when the IR changes from 0.1 to 1, the HRIELM’s ACCtotal values are all above 92.00% and they unfold
+the smallest variations among the five methods. In particular, the biggest distinction of the HRIELM’s ACCtotal with the varying values
+of IR is calculated as only 3.08%. Whereas the values of ACCtotal for the BGELM, BTELM, WELM, and BWELM are respectively all below
+87.70%, 87.20%, 88.10%, and 90.90% and they uncover much larger variations than those of the HRIELM when the IR changes from
+0.1 to 1. Particularly, the biggest distinctions of the index ACCtotal values for the BGELM, BTELM, WELM, and BWELM are respectively
+17.07%, 13.28%, 14.86%, and 14.72% with the IR varying. Meanwhile, during the IR changing from 0.1 to 1, the HRIELM’s G-mean
+values are always the largest and they also display the smallest variations among the five fault diagnosis methods. To be specific, when
+the value of IR varies, the values of the G-mean for the HRIELM are all above 91.9% and the biggest distinction of the G-mean is
+computed to be only 3.34%.
+    Furthermore, the values of the ACCtotal and G-mean for the five approaches under different IR values are visualized in Fig. 22, where
+
+
+                                                                            20
+H. Zhang et al.                                                                                              Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+        Fig. 19. The confusion matrices for the five fault diagnosis methods when IR = 0.6, (a) BGELM, (b) BTELM, (c) WELM, (d) BWELM, (e) HRIELM.
+
+
+the HRIELM’s ACCtotal values are denoted as the block square line and the HRIELM’s G-mean values are represented as the red dot line.
+It can be seen from Fig. 22(a) and (b), the lines of the HRIELM’s ACCtotal and G-mean are both above the corresponding lines of the
+other four approaches. Thus, the HRIELM is more efficient to diagnose the chiller fault under different data imbalance rates than the
+BGELM, BTELM, WELM, and BWELM.
+    In addition, according to Fig. 22, the indices ACCtotal and G-mean values of the five fault diagnosis methods suddenly decrease for
+
+
+                                                                           21
+H. Zhang et al.                                                                                                    Journal of Building Engineering 70 (2023) 106338
+
+Table 6
+The comparison of the index ACC values for the five methods under IR = 0.6.
+
+  Diagnosis methods             CF                 EO                   FWC                  FEW                NC                  RL                  RO
+
+  BGELM                         91.50%             89.00%               86.00%               86.50%             92.50%              84.00%              78.50%
+  BTELM                         90.50%             88.50%               81.50%               82.50%             94.00%              79.00%              84.50%
+  WELM                          94.00%             90.00%               79.50%               84.00%             94.50%              67.50%              81.50%
+  BWELM                         95.50%             85.50%               83.00%               85.50%             95.00%              80.00%              81.00%
+  HRIELM                        98.00%             95.50%               93.00%               92.50%             97.50%              93.00%              90.00%
+
+
+
+
+                                           Fig. 20. The identification accuracies of the five approaches for IR = 0.6.
+
+
+
+Table 7
+The comparison of the indices ACCtotal and G-mean for the five methods when IR = 0.1 and IR = 0.6.
+
+  Diagnosis methods                           IR = 0.1                                                               IR = 0.6
+
+                                              ACCtotal                              G-mean                           ACCtotal                           G-mean
+
+  BGELM                                       81.79%                                80.70%                           86.86%                             86.74%
+  BTELM                                       81.79%                                80.95%                           85.79%                             85.64%
+  WELM                                        81.21%                                80.72%                           84.43%                             83.94%
+  BWELM                                       82.86%                                82.53%                           86.50%                             86.31%
+  HRIELM                                      92.21%                                92.04%                           94.21%                             94.18%
+
+
+
+
+                         Fig. 21. The line charts of the indices ACCtotal and G-mean for the five methods when IR = 0.1 and IR = 0.6.
+
+
+IR = 0.3 and then gradually increase again when IR varies from 0.4 to 1. This phenomenon results from the numbers of samples in
+various fault pattern subsets that are randomly determined from different numerical intervals for IR ≤ 0.3 and IR ≥ 0.4 in our work.
+Table 9 gives out the different numerical intervals applied to randomly select the sample numbers of the diverse fault pattern subsets in
+an imbalanced dataset when IR changes from 0.1 to 1. As exhibited in Table 9, with the value of IR increases from 0.1 to 0.3, the
+numerical interval becomes smaller and smaller. In particular, when IR = 0.3, the numerical interval decreases to the minimum [13,
+15]. This means that when IR = 0.3, the fault pattern subsets in an imbalanced dataset would have the minimum sample numbers
+compared with those under the other different IR values. Therefore, for IR = 0.3, the limited sample numbers of the fault pattern
+
+                                                                               22
+H. Zhang et al.                                                                                                     Journal of Building Engineering 70 (2023) 106338
+
+Table 8
+The comparison of the indices ACCtotal and G-mean for the five methods with IR varying from 0.1 to 1.
+
+  IR         BGELM                          BTELM                         WELM                           BWELM                             HRIELM
+
+             ACCtotal       G-mean          ACCtotal       G-mean         ACCtotal           G-mean      ACCtotal         G-mean           ACCtotal      G-mean
+
+  0.1        81.79%         80.70%          81.79%         80.95%          81.21%            80.72%      82.86%           82.53%           92.21%        92.04%
+  0.2        83.36%         82.51%          82.64%         81.92%          84.86%            83.85%      85.71%           85.23%           93.43%        93.32%
+  0.3        70.57%         61.86%          73.86%         64.60%          73.14%            69.14%      76.14%           71.09%           94.43%        94.39%
+  0.4        77.79%         76.74%          77.57%         76.50%          81.50%            79.82%      82.86%           81.33%           92.07%        91.92%
+  0.5        80.29%         79.35%          79.71%         78.58%          81.86%            80.39%      83.71%           82.19%           92.71%        92.57%
+  0.6        86.86%         86.74%          85.79%         85.64%          84.43%            83.94%      86.50%           86.31%           94.21%        94.18%
+  0.7        82.93%         81.75%          83.21%         82.23%          84.00%            83.14%      86.29%           85.07%           93.64%        93.62%
+  0.8        84.36%         83.38%          84.50%         83.35%          84.86%            84.25%      88.00%           86.44%           94.21%        94.20%
+  0.9        86.07%         85.36%          86.64%         86.01%          87.29%            86.72%      90.86%           89.79%           94.64%        94.62%
+  1          87.64%         86.94%          87.14%         86.56%          88.00%            87.49%      90.43%           89.57%           95.29%        95.26%
+
+
+
+
+                         Fig. 22. The line charts of the indices ACCtotal and G-mean for the five methods with IR varying from 0.1 to 1.
+
+
+
+Table 9
+The intervals utilized to randomly determine the sample numbers under different IR values.
+
+  IR                                                                                                                            The interval [min (Ni), max (Ni)]
+
+  0.1                                                                                                                           [36, 350]
+  0.2                                                                                                                           [36, 175]
+  0.3                                                                                                                           [36, 88]
+  0.4                                                                                                                           [36, 117]
+  0.5                                                                                                                           [180, 360]
+  0.6                                                                                                                           [216, 360]
+  0.7                                                                                                                           [252, 360]
+  0.8                                                                                                                           [288, 360]
+  0.9                                                                                                                           [324, 360]
+  1                                                                                                                             [359, 360]
+
+
+
+subsets result in the ACCtotal and G-mean values of the five methods abruptly decreasing. On the contrary, with IR raising from 0.4 to 1,
+the sample numbers of the fault pattern subsets in an imbalanced dataset go on growing. This situation brings about the ACCtotal and
+G-mean values increasing by degrees when IR changes from 0.4 to 1.
+
+7.4.3. Comparisons for the severity degrees Level-2 ~ Level-4
+    The recognition results of the HRIELM, BGELM, BTELM, WELM, and BWELM based approaches for the other three fault severity
+levels, i.e., Level-2, Level-3, and Level-4, are further estimated to examine the performance influences of different fault severity levels.
+As shown in Fig. 23, for the three fault severity levels, the indices ACCtotal and G-mean values of the five fault diagnosis approaches all
+fluctuate up and down along with different IR values. Although the values of the HRIELM’s diagnosis performance indices slightly
+decline for IR = 0.3, the HRIELM obtains the largest and the most stable ACCtotal and G-mean values among the five methods for the
+fault severity degrees Level-2, Level-3, and Level-4. Again, the visualized comparisons of fault diagnosis results exhibited in Fig. 23
+prove the excellent fault diagnosis capability of the HRIELM, in terms of different fault severity levels and varying data imbalance
+
+
+                                                                               23
+H. Zhang et al.                                                                                               Journal of Building Engineering 70 (2023) 106338
+
+
+
+
+                            Fig. 23. The ACCtotal and G-mean values of the five methods for different fault severity levels.
+
+
+rates.
+
+8. Conclusions
+    A novel HRIELM based scheme is suggested to diagnose the chiller fault under the imbalanced data environments in our work. As
+far as we know, we are the first to combine a new hybrid resampling technique with an improved selective ensemble ELM model to
+identify the faults when the sample numbers of the historical fault pattern datasets are imbalanced. To be specific, our work has three
+
+
+                                                                          24
+H. Zhang et al.                                                                                                       Journal of Building Engineering 70 (2023) 106338
+
+
+contributions. Firstly, the HRT technique is proposed to resample and rebalance the chiller’s imbalanced historical fault pattern
+datasets, by fusing the SMOTE over-sampling method with the random under-sampling method. Secondly, to alleviate the compu­
+tational complexity and lay a foundation for the subsequent modified selective ensemble learning strategy, the ELM is utilized as the
+basic fault diagnosis model and a number of basic ELM diagnosis models are established on the multiple different rebalanced training
+datasets. At last, an improved selective ensemble learning strategy is developed to diagnose the fault pattern of snapshot samples by
+picking out and weighting the basic ELM models with superior performance, to further enhance the fault identification effectiveness of
+the chiller and reduce the computational burden.
+    Detailed experiments and comparisons implemented on the ASHRAE RP-1043 experimental datasets verify the excellent perfor­
+mance of the proposed HRIELM scheme for the imbalanced data based chiller fault diagnosis. To be specific, in comparison with the
+related adaptive synthetic (ADASYN) sampling approach, the developed HRT resampling technique reveals superior effectiveness to
+deal with the problem of data imbalance by enlarging the minority classes and shrinking the majority classes. In addition, compared
+with the relevant BGELM, BTELM, WELM, and BWELM based methods on four different severity levels imbalanced datasets with the
+imbalance rate (IR) varying from 0.1 to 1, the experiments demonstrate the outstanding diagnosis performance and remarkable im­
+provements of the proposed HRIELM based fault diagnosis scheme in terms of the three evaluation indices: fault diagnosis accuracy,
+overall fault diagnosis accuracy, and geometric mean.
+    In practice, it is always time-consuming and laborious to gather sufficient labeled operation data for the chiller’s different fault
+patterns, while large amounts of the chiller’s unlabeled operation data are more easily to be collected. To tackle the tough issue of
+imbalanced labeled and unlabeled operation data during recognizing fault, further studies are suggested to investigate some semi-
+supervised learning based methods, such as the semi-supervised ELM, semi-supervised deep neural networks, and so on, to build
+more reliable chiller fault diagnosis models.
+
+Author statement
+   Hanyuan Zhang*: Investigation, Methodology, Project administration, Supervision, Funding acquisition. Wenxin Yang: Concep­
+tualization, Investigation, Software. Weilin Yi: Methodology, Investigation, Software. Jit Bing Lim: Conceptualization, Methodology,
+Writing – original draft. Zenghui An: Data curation, Conceptualization, Writing – original draft. Chengdong Li: Software, Validation,
+Visualization.
+
+Declaration of competing interest
+    The authors declare that they have no known competing financial interests or personal relationships that could have appeared to
+influence the work reported in this paper
+
+Data availability
+
+    Data will be made available on request.
+
+Acknowledgments
+   This study is partly supported by the National Natural Science Foundation of China (62003191, 62076150, 52005300, 62133008),
+the Youth Innovation Team Technology Project of Higher School in Shandong Province (2022KJ204), the Natural Science Foundation
+of Shandong Province (ZR2020QF072), the Key Research and Development Plan of Shandong Province for Major Scientific and
+Technological Innovation Project (2021CXGC011205) and the Taishan Scholar Project of Shandong Province (TSQN201812092).
+
+References
+ [1] J. Chen, L. Zhang, Y. Li, et al., A review of computing-based automated fault detection and diagnosis of heating, ventilation and air conditioning systems,
+     Renew. Sustain. Energy Rev. 161 (2022), 112395, https://doi.org/10.1016/j.rser.2022.112395.
+ [2] M.S. Mirnaghi, F. Haghighat, Fault detection and diagnosis of large-scale HVAC systems in buildings using data-driven methods: a comprehensive review,
+     Energy Build. 229 (2020), 110492, https://doi.org/10.1016/j.enbuild.2020.110492.
+ [3] Z. Li, T. Zheng, Y. Wang, et al., A novel method for imbalanced fault diagnosis of rotating machinery based on generative adversarial networks, IEEE Trans.
+     Instrum. Meas. 70 (2020) 1–17, https://doi.org/10.1109/TIM.2020.3009343.
+ [4] Ke Yan, Chong Adrian, Yuchang Mo, Generative adversarial network for fault detection diagnosis of chillers, Build. Environ. 172 (2020), 106698, https://doi.
+     org/10.1016/j.buildenv.2020.106698.
+ [5] Cheng Fan, Xueqing Li, Yang Zhao, Jiayuan Wang, Quantitative assessments on advanced data synthesis strategies for enhancing imbalanced AHU fault
+     diagnosis performance, Energy Build. 252 (2021), 111423, https://doi.org/10.1016/j.enbuild.2021.111423.
+ [6] J. Chen, H. Huang, A.G. Cohn, et al., Machine learning-based classification of rock discontinuity trace: SMOTE oversampling integrated with GBT ensemble
+     learning, Int. J. Min. Sci. Technol. 32 (2) (2022) 309–322, https://doi.org/10.1016/j.ijmst.2021.08.004.
+ [7] A.M. Zhang, H.L. Yu, S.L. Zhou, Z.J. Huan, X.B. Yang, Instance weighted SMOTE by indirectly exploring the data distribution, Knowl. Base Syst. 249 (2022),
+     108919, https://doi.org/10.1016/j.knosys.2022.108919.
+ [8] S. Lu, P. Zhou, X. Wang, et al., Condition monitoring and fault diagnosis of motor bearings using unders-ampled vibration signals from a wireless sensor
+     network, J. Sound Vib. 414 (2018) 81–96, https://doi.org/10.1016/j.jsv.2017.11.007.
+ [9] M. Kabir, S. Ahmad, M. Iqbal, et al., Improving prediction of extracellular matrix proteins using evolutionary information via a grey system model and
+     asymmetric under-sampling technique, Chemometr. Intell. Lab. Syst. 174 (2018) 22–32, https://doi.org/10.1016/j.chemolab.2018.01.004.
+[10] Q. Hu, A. Qin, Q. Zhang, et al., Fault diagnosis based on weighted extreme learning machine with wavelet packet decomposition and KPCA, IEEE Sensor. J. 18
+     (20) (2018) 8472–8483, https://doi.org/10.1109/JSEN.2018.2866708.
+[11] Y.Q. Chen, O. Fink, G. Sansavini, Combined fault location and classification for power transmission lines fault diagnosis with integrated feature extraction, IEEE
+     Trans. Ind. Electron. 65 (1) (2017) 561–569, https://doi.org/10.1109/TIE.2017.2721922.
+
+
+                                                                                  25
+H. Zhang et al.                                                                                                           Journal of Building Engineering 70 (2023) 106338
+
+[12] J. Liu, J. He, W. Zhang, et al., ANID-SEoKELM: adaptive network intrusion detection based on selective ensemble of kernel ELMs with random features, Knowl.
+     Base Syst. 177 (2019) 104–116, https://doi.org/10.1016/j.knosys.2019.04.008.
+[13] C. Perales-Gonzalez, M. Carbonero-Ruz, D. Becerra-Alonso, et al., Regularized ensemble neural networks models in the Extreme Learning Machine framework,
+     Neurocomputing 361 (2019) 196–211, https://doi.org/10.1016/j.neucom.2019.06.040.
+[14] S.X. Lv, L. Peng, H. Hu, et al., Effective machine learning model combination based on selective ensemble strategy for time series forecasting, Inf. Sci. 612 (2022)
+     994–1023, https://doi.org/10.1016/j.ins.2022.09.002.
+[15] H. Jin, Y. Li, B. Wang, et al., Adaptive forecasting of wind power based on selective ensemble of offline global and online local learning, Energy Convers. Manag.
+     271 (2022), 116296, https://doi.org/10.1016/j.enconman.2022.116296.
+[16] X. Li, H. Jiang, M. Niu, et al., An enhanced selective ensemble deep learning method for rolling bearing fault diagnosis with beetle antennae search algorithm,
+     Mech. Syst. Signal Process. 142 (2020), 106752, https://doi.org/10.1016/j.ymssp.2020.106752.
+[17] T. Zhang, J. Chen, F. Li, et al., Intelligent fault diagnosis of machines with small & imbalanced data: a state-of-the-art review and possible extensions, ISA Trans.
+     119 (2022) 152–171, https://doi.org/10.1016/j.isatra.2021.02.042.
+[18] A.P. Rogers, F. Guo, B.P. Rasmussen, A review of fault detection and diagnosis methods for residential air conditioning systems, Build. Environ. 161 (2019),
+     106236, https://doi.org/10.1016/j.buildenv.2019.106236.
+[19] J. Park, J.M. Ha, H. Oh, et al., Model-based fault diagnosis of a planetary gear: a novel approach using transmission error, IEEE Trans. Reliab. 65 (4) (2016)
+     1830–1841, https://doi.org/10.1109/TR.2016.2590997.
+[20] Zhen Zhao, , Peter Xiaoping Liu, Jinfeng Gao, Model-based fault diagnosis methods for systems with stochastic process -A survey, Neurocomputing 513 (2022)
+     137–152, https://doi.org/10.1016/j.neucom.2022.09.134.
+[21] Vijay Singh, Jyotirmay Mathur, Aviruch Bhatia, A comprehensive review: fault detection, diagnostics, prognostics, and fault modeling in HVAC systems, Int. J.
+     Refrig. 144 (2022) 283–295, https://doi.org/10.1016/j.ijrefrig.2022.08.017.
+[22] J. Wen, H. Yao, Z. Ji, et al., On fault diagnosis for high-g accelerometers via data-driven models, IEEE Sensor. J. 21 (2) (2020) 1359–1368, https://doi.org/
+     10.1109/JSEN.2020.3019632.
+[23] S. Asgari, R. Gupta, I.K. Puri, et al., A data-driven approach to simultaneous fault detection and diagnosis in data centers, Appl. Soft Comput. 110 (2021),
+     107638, https://doi.org/10.1016/j.asoc.2021.107638.
+[24] A. Taal, L. Itard, P&ID-based automated fault identification for energy performance diagnosis in HVAC systems: 4S3F method, development of DBN models and
+     application to an ATES system, Energy Build. 224 (2020), 110289, https://doi.org/10.1016/j.enbuild.2020.110289.
+[25] Y. Fan, X. Cui, H. Han, et al., Feasibility and improvement of fault detection and diagnosis based on factory-installed sensors for chillers, Appl. Therm. Eng. 164
+     (2020), 114506, https://doi.org/10.1016/j.applthermaleng.2019.114506.
+[26] M. Bonvini, M.D. Sohn, J. Granderson, et al., Robust on-line fault detection diagnosis for HVAC components based on nonlinear state estimation techniques,
+     Appl. Energy 124 (2014) 156–166, https://doi.org/10.1016/j.apenergy.2014.03.009.
+[27] R. Van de Sand, S. Corasaniti, J. Reiff-Stephan, Data-driven fault diagnosis for heterogeneous chillers using domain adaptation techniques, Control Eng. Pract.
+     112 (2021), 104815, https://doi.org/10.1016/j.conengprac.2021.104815.
+[28] D. Li, G. Hu, C.J. Spanos, A data-driven strategy for detection and diagnosis of building chiller faults using linear discriminant analysis, Energy Build. 128 (2016)
+     519–529, https://doi.org/10.1016/j.enbuild.2016.07.014.
+[29] J. Liu, D. Shi, G. Li, et al., Data-driven and association rule mining-based fault diagnosis and action mechanism analysis for building chillers, Energy Build. 216
+     (2020), 109957, https://doi.org/10.1016/j.enbuild.2020.109957.
+[30] Hanyuan Zhang, C. Li, D. Li, et al., Fault detection and diagnosis of the air handling unit via an enhanced kernel slow feature analysis approach considering the
+     time-wise and batch-wise dynamics, Energy Build. 253 (2021), 111467, https://doi.org/10.1016/j.enbuild.2021.111467.
+[31] Hanyuan Zhang, C. Li, Q. Wei, et al., Fault detection and diagnosis of the air handling unit via combining the feature sparse representation based dynamic SFA
+     and the LSTM network, Energy Build. (2022), 112241, https://doi.org/10.1016/j.enbuild.2022.112241.
+[32] C. Li, C. Shen, Hanyuan Zhang, et al., A novel temporal convolutional network via enhancing feature extraction for the chiller fault diagnosis, J. Build. Eng. 42
+     (2021), 103014, https://doi.org/10.1016/j.jobe.2021.103014.
+[33] Y. Yu, Hanyuan Zhang, W. Peng, et al., Images based fault diagnosis of air handling unit via combining kernel slow feature analysis and deep learning method,
+     J. Build. Eng. (2022), 104718, https://doi.org/10.1016/j.jobe.2022.104718.
+[34] Z. An, X. Jiang, R. Yang, Hanyuan Zhang, et al., Actively imaginative data augmentation for machinery diagnosis under large speed fluctuation conditions, IEEE
+     Trans. Ind. Inf. (2023), https://doi.org/10.1109/TII.2022.3218737 in press.
+[35] K. Xu, S. Li, X. Jiang, et al., A novel transfer diagnosis method under unbalanced sample based on discrete-peak joint attention enhancement mechanism, Knowl.
+     Base Syst. 212 (2021), 106645, https://doi.org/10.1016/j.knosys.2020.106645.
+[36] N. Wang, Y. Zhang, X. Zhao, et al., Search-based Cost-Sensitive Hypergraph Learning for Anomaly Detection, Information Sciences, 2022, https://doi.org/
+     10.1016/j.ins.2022.07.029.
+[37] F. Jiang, X. Yu, J. Du, et al., Ensemble learning based on approximate reducts and bootstrap sampling, Inf. Sci. 547 (2021) 797–813, https://doi.org/10.1016/j.
+     ins.2020.08.069.
+[38] J. Wang, Y. Zhang, F. Zhang, et al., Accuracy-improved bearing fault diagnosis method based on AVMD theory and AWPSO-ELM model, Measurement 181
+     (2021), 109666, https://doi.org/10.1016/j.measurement.2021.109666.
+[39] K. Yan, Z. Ji, H. Lu, et al., Fast and accurate classification of time series data using extended ELM: application in fault diagnosis of air handling units, IEEE
+     Transactions on Systems, Man, and Cybernetics: Systems 49 (7) (2017) 1349–1356, https://doi.org/10.1109/TSMC.2017.2691774.
+[40] Cunxiao Shen, Hanyuan Zhang, Songping Meng, Chengdong Li, Augmented data driven self-attention deep learning method for imbalanced fault diagnosis of
+     the HVAC chiller, Eng. Appl. Artif. Intell. 117 (2023), 105540, https://doi.org/10.1016/j.engappai.2022.105540.
+[41] Z. Zhou, H. Chen, G. Li, et al., Data-driven fault diagnosis for residential variable refrigerant flow system on imbalanced data environments, Int. J. Refrig. 125
+     (2021) 34–43, https://doi.org/10.1016/j.ijrefrig.2021.01.009.
+[42] G.B. Huang, Q.Y. Zhu, C.K. Siew, Extreme learning machine: theory and applications, Neurocomputing 70 (1–3) (2006) 489–501, https://doi.org/10.1016/j.
+     neucom.2005.12.126.
+[43] P. Li, Z. Liu, B. Anduv, et al., Diagnosis for multiple faults of chiller using ELM-KNN model enhanced by multi-label learning and specific feature combinations,
+     Build. Environ. 214 (2022), 108904, https://doi.org/10.1016/j.buildenv.2022.108904.
+[44] M.C. Comstock, J.E. Braun, Development of Analysis Tools for the Evaluation of Fault Detection and Diagnostics in Chillers, ASHRAE Research Project RP-1043,
+     American Society of Heating, Refrigerating and Air-Conditioning Engineers, Atlanta, 1999, pp. 20–99.
+[45] J. Liu, D. Shi, G. Li, Y. Xie, K. Li, et al., Data-driven and association rule mining-based fault diagnosis and action mechanism analysis for building chillers, Energy
+     Build. 216 (2020), 109957, https://doi.org/10.1016/j.enbuild.2020.109957.
+[46] C.M. Vong, J. Du, C.M. Wong, et al., Postboosting using extended G-mean for online sequential multiclass imbalance learning, IEEE Transact. Neural Networks
+     Learn. Syst. 29 (12) (2018) 6163–6177, https://doi.org/10.1109/TNNLS.2018.2826553.
+[47] Haibo He, Bai Yang, E.A. Garcia, Shutao Li Adasyn, Adaptive Synthetic Sampling Approach for Imbalanced Learning. 2008 IEEE International Joint Conference
+     on Neural Networks, IEEE World Congress on Computational Intelligence), Hong Kong, 2008, pp. 1322–1328, https://doi.org/10.1109/IJCNN.2008.4633969.
+[48] Debaleena Datta, Pradeep Kumar Mallick, Annapareddy V.N. Reddy, et al., A hybrid classification of imbalanced hyperspectral images using ADASYN and
+     enhanced deep subsampled multi-grained cascaded forest, Rem. Sens. 14 (19) (2022) 4853, https://doi.org/10.3390/rs14194853.
+
+
+
+
+                                                                                    26
+

@@ -88,6 +88,18 @@ def load_folds(desc, random_state=42):
         classes = np.array(sorted(set(np.concatenate(all_y).tolist())))
         return folds, classes
 
+    if desc.source == "keel_complete":
+        # Whole dataset from Dataset/KEEL/complete/<name>.csv → ONE deterministic
+        # stratified holdout split (no cross-validation). All models see the
+        # exact same split: test_size=0.3, random_state=42.
+        path = os.path.join(paths.KEEL_COMPLETE, f"{desc.keel_name}.csv")
+        X, y = _read_keel_csv(path)
+        from sklearn.model_selection import train_test_split
+        Xtr, Xte, ytr, yte = train_test_split(
+            X, y, test_size=0.3, stratify=y, random_state=42)
+        classes = np.array(sorted(set(y.tolist())))
+        return [Fold(Xtr, ytr, Xte, yte, 1)], classes
+
     if desc.source == "bearing":
         path = os.path.join(paths.BEARING_IR, f"IR{desc.ir}", f"{desc.bearing_name}.csv")
         X, y = _read_bearing_csv(path)
@@ -184,7 +196,12 @@ def build_bearing_ir_datasets(irs=DEFAULT_IRS, random_state=42, out_root=None,
 def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
                           bearing_names=None, sdp_names=None, heart_names=None,
                           keel_root=None, bearing_ir_root=None):
-    """Walk KEEL_5FOLD/* + Bearing_IR/IR<ir>/* + Software/* + Heart/* → descriptors."""
+    """Walk KEEL_5FOLD|KEEL_COMPLETE + Bearing_IR/IR<ir>/* + Software/* + Heart/* → descriptors.
+
+    The KEEL root may use either layout:
+      * 5fold:     <name>/fold{i}_{train,test}.csv      → source="keel"
+      * complete:  <name>.csv (whole dataset)           → source="keel_complete"
+    """
     keel_root = keel_root or paths.KEEL_5FOLD
     bearing_ir_root = bearing_ir_root or paths.BEARING_IR
     out = []
@@ -192,11 +209,16 @@ def discover_all_datasets(keel_filter=None, bearing_irs=DEFAULT_IRS,
     if os.path.isdir(keel_root):
         for name in sorted(os.listdir(keel_root)):
             d = os.path.join(keel_root, name)
-            if not (os.path.isdir(d) and os.path.isfile(os.path.join(d, "fold1_train.csv"))):
-                continue
-            if keel_filter is not None and name not in keel_filter:
-                continue
-            out.append(DatasetDescriptor(name=name, source="keel", keel_name=name))
+            if os.path.isdir(d) and os.path.isfile(os.path.join(d, "fold1_train.csv")):
+                if keel_filter is not None and name not in keel_filter:
+                    continue
+                out.append(DatasetDescriptor(name=name, source="keel", keel_name=name))
+            elif os.path.isfile(d) and name.endswith(".csv"):
+                stem = name[:-4]
+                if keel_filter is not None and stem not in keel_filter:
+                    continue
+                out.append(DatasetDescriptor(name=stem, source="keel_complete",
+                                             keel_name=stem))
 
     names = set(bearing_names) if bearing_names is not None else None
     for ir in bearing_irs:

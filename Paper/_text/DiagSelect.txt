@@ -1,0 +1,617 @@
+       2518                                                           IEEE TRANSACTIONS ON INDUSTRIAL INFORMATICS, VOL. 18, NO. 4, APRIL 2022
+
+
+
+
+                Imbalanced Sample Selection With Deep
+               Reinforcement Learning for Fault Diagnosis
+                                    Saite Fan , Xinmin Zhang , Member, IEEE, and Zhihuan Song
+
+
+          Abstract—An imbalanced number of faulty and normal
+       samples causes serious damage to the performance of
+       the conventional diagnosis methods. To settle the data-
+       imbalance fault diagnosis problem, this article presents
+       a novel general imbalanced sample selection strategy
+       (DiagSelect) based on deep reinforcement learning. In
+       DiagSelect, the problem of imbalanced sample selection
+       from the training set is formulated as a multiarmed bandit
+       problem of deep reinforcement learning. The nondifferen-
+       tiable optimization problem of imbalanced sample selec-
+       tion can be solved by the Markov decision process. The
+       parameters of DiagSelect can be optimized by REINFORCE
+       with the feedback of the validation set. DiagSelect performs
+       intelligent imbalanced sample selection to obtain better di-
+       agnosis performance autonomously. As a data-level tech-
+       nique, DiagSelect can be easily used in conjunction with
+       the conventional diagnosis models. DiagSelect is validated
+       in a synthetic dataset and an industrial process dataset.
+       The results have shown the effectiveness, stability, and
+       transferability of DiagSelect.
+         Index Terms—Deep reinforcement learning, fault diag-                            Fig. 1.   Influence illustration of different imbalance levels.
+       nosis, imbalanced sample selection, industrial process
+       monitoring, multi-armed bandit (MAB) problem, nondiffer-
+       entiable optimization problem.
+                                                                                         industry 4.0, various new intelligent technologies are used for
+                                                                                         process monitoring [2], control [3], and quality prediction [4].
+                                   I. INTRODUCTION                                       Data-driven fault diagnosis is an important part of industrial
+                                                                                         process monitoring, which distinguishes faults from normal
+               ITH the rapid development of the Internet of Things
+       W       and cloud computing, a large amount of industrial
+       process data has been recorded in the industrial distributed
+                                                                                         process data by using easy-to-measure process variables. Data-
+                                                                                         driven fault diagnosis methods have been extensively studied
+                                                                                         because of their flexibility, ease of use, and low cost. In re-
+       control system [1]. In the context of smart manufacturing of
+                                                                                         cent years, many fault diagnosis methods based on machine
+                                                                                         learning have been proposed and applied to various industrial
+                                                                                         processes [5]–[7].
+          Manuscript received May 11, 2021; revised July 6, 2021; accepted                  As the number of industrial process samples collected contin-
+       July 20, 2021. Date of publication July 27, 2021; date of current version
+       December 27, 2021. This work was supported in part by the National                ues to increase in modern factories [8], the industrial database
+       Natural Science Foundation of China under Grant 62003301 and Grant                contains more and more information. Most industrial processes
+       61833014 and in part by the State Key Laboratory of Industrial Control            operate under normal conditions, the collected faulty samples
+       Technology, Zhejiang University, China under Grant ICT2021A14. Pa-
+       per no. TII-21-2003. (Corresponding authors: Xinmin Zhang; Zhihuan                are rare. As a result, the number of normal samples collected in
+       Song.)                                                                            the industrial process is far greater than that of faulty samples.
+          Saite Fan and Zhihuan Song are with the State Key Laboratory of                Because there are only relatively few faulty samples, it is diffi-
+       Industrial Control Technology, College of Control Science and Engi-
+       neering, Zhejiang University, Zhejiang 310027, China, and also with               cult for conventional fault diagnosis methods to learn effective
+       the Collaborative Innovation Center of Artificial Intelligence by MOE             information. Such problems are defined as the class-imbalance
+       and Zhejiang Provincial Government (ZJU), Hangzhou 310027, China                  problem in the fault diagnosis domain. As shown in Fig. 1, indus-
+       (e-mail: fansaite@zju.edu.cn; songzhihuan@zju.edu.cn).
+          Xinmin Zhang is with the State Key Laboratory of Industrial Control            trial process data is divided into four levels of imbalance: balance
+       Technology, College of Control Science and Engineering, Zhejiang Uni-             distribution, less-imbalanced distribution, mid-imbalanced dis-
+       versity, Hangzhou 310027, China (e-mail: xinminzhang@zju.edu.cn).                 tribution, and highly imbalanced distribution. The four levels of
+          Color versions of one or more figures in this article are available at
+       https://doi.org/10.1109/TII.2021.3100284.                                         imbalance lead to different degrees of inaccurate model fitting.
+          Digital Object Identifier 10.1109/TII.2021.3100284                             Thus, there is an urgent need to improve the performance of
+
+                           1551-3203 © 2021 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.
+                                         See https://www.ieee.org/publications/rights/index.html for more information.
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+     FAN et al.: IMBALANCED SAMPLE SELECTION WITH DEEP REINFORCEMENT LEARNING FOR FAULT DIAGNOSIS                                                                2519
+
+
+
+     fault diagnosis methods without excessively increasing expert                      with the collected samples by several time steps. As a MAB
+     knowledge and domain knowledge. To settle such an issue, a lot                     problem, the process of sample selection in the training set is
+     of research works have been carried out, which can be divided                      described as a single-state Markov decision process (MDP). At
+     into three categories as follows:                                                  each time step, the state is the training set, which includes feature
+         1) Data-Level Techniques: Data-level techniques tend to                        information and label information. The reward is the perfor-
+             rebalance class distribution through various data sam-                     mance of the diagnosis model of DiagSelect on the validation set
+             pling or generating techniques in the data preprocessing                   after training on the selected sample subset. The diagnosis model
+             phase. The data-level techniques are mainly divided into                   of DiagSelect is just to analog the environment in reinforcement
+             four categories: under-sampling [9], over-sampling [10],                   learning for obtaining the reward. The action is selecting samples
+             [11], cleaning-resampling [12], and data generation [13].                  from the training set. The goal of the entire selection process is
+             However, under-sampling and over-sampling often lead                       to maximize the benefits of the sample selection by several time
+             to over-fitting and under-fitting without any guid-                        steps. To summarize, the main contributions of this article are
+             ance. Cleaning-resampling needs to meet some assump-                       summarized as follows:
+             tions. As a novel data-level technique, data generation                         1) From a new perspective, the novel strategy automatically
+             has been studied extensively, and it is effective but                              learns the adaptive imbalanced sample selection model
+             unstable.                                                                          for different domains datasets. DiagSelect can settle the
+         2) Algorithm-Level Methods: The algorithm-level methods                                class-imbalance problem of a variety of distribution adap-
+             mainly solve the class-imbalance problem directly from                             tively without any expert knowledge and assumption in
+             the perspective of algorithm design. Cost-sensitive learn-                         the fault diagnosis domain.
+             ing is an important part of algorithm-level methods, which                      2) The adaptive automatic process of the imbalanced sample
+             includes adapting learning algorithm [14] and weighted                             selection is first formalized as the MDP. The problem of
+             data space [15]. Cost-sensitive learning is versatile in                           finding the best sample subset is formalized as the MAB
+             many domains [16]. However, it requires domain experts                             problem.
+             to provide the cost matrix in advance, which is usually not                     3) The proposed strategy is evaluated in a synthetic dataset
+             feasible in practice. Many recent algorithm-level methods                          and an industrial process dataset. These experiments and
+             are mainly based on designing new loss functions, such                             comparative studies validate the effectiveness of tailored
+             as FocalLoss [17].                                                                 designs of DiagSelect for the class-imbalance problem
+         3) Hybrid Approaches: Hybrid approaches are the com-                                   in the fault diagnosis domain. DiagSelect is decoupled
+             bination of data-level techniques and algorithm-level                              from specific diagnosis models, which makes DiagSelect
+             methods, which effectively improve effective solutions                             universally applicable to most statistical and nonstatisti-
+             for the class-imbalance problem in the fault diagnosis                             cal diagnosis models [such as decision tree (DT), sup-
+             domain [18].                                                                       port vector machine (SVM), and multilayer perceptron
+        In the field of fault diagnosis, these class-imbalance methods                          (MLP)].
+     have good effects on the class-imbalance problem. However,                            In the case study, random under-sampling (RUS), ran-
+     the above methods have three main limitations: 1) the per-                         dom over-sampling (ROS), synthetic minority oversampling
+     formance is unstable because they are sensitive to outliers;                       technique (SMOTE), ADAptive SYNthetic over-sampling
+     2) the applicability is poor because the hand-designed cost                        (ADASYN), SVMSMOTE, SMOTE with Tomek links cleaning
+     matrix requires expert knowledge as the prerequisite; and 3)                       (SMOTETomek), and EasyEnsemble are selected as comparison
+     the adaptive ability is poor because these methods cannot be                       strategies. Meanwhile, three diagnosis models that include DT,
+     applied to all imbalanced industrial process datasets. There-                      SVM, and MLP are selected to verify the generalization of the
+     fore, these methods are not general and adaptive for complex                       DiagSelect strategy. The results of a synthetic dataset and an
+     industrial process tasks without any expert knowledge and                          industrial process dataset show that the DiagSelect-based diag-
+     assumption.                                                                        nosis model can be utilized in the industrial process data for the
+        To settle the above problems, it is necessary to propose an                     class-imbalance problem, which has a strong diagnosis ability
+     adaptive automatic sample selection strategy that can automati-                    and stability under different IRs. The cross-task experiment
+     cally remove outliers and select effective samples to reduce the                   shows that DiagSelect has transferability in different datasets
+     degree of imbalance. To realize this objective, a new adaptive au-                 and different diagnosis models. This transferability allows Di-
+     tomatic imbalanced sample selection strategy called DiagSelect                     agSelect to be used directly or initially for another task to reduce
+     is proposed in this work. The design of DiagSelect is inspired                     the calculation costs. Consequently, DiagSelect is an effective
+     by the latest developments of reinforcement learning, which for-                   strategy for the class imbalance problems in the field of fault
+     malizes the problem of removing outliers and selecting effective                   diagnosis.
+     samples as a MAB problem. In DiagSelect, the reinforcement                            The rest of this article is organized as follows. In Section II,
+     learning mechanism is used to solve this MAB problem. The                          a review of relative preliminary work is briefly introduced. In
+     REINFORCE [19] is used to optimize the process of sample                           Section III, the overall framework and details of the proposed
+     selection. More specifically, the key idea of DiagSelect is that                   DiagSelect are presented. In Section IV, the effectiveness, stabil-
+     process of sample selection is trainable and real-time interaction                 ity, and transferability of DiagSelect are verified by comparing it
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+       2520                                                                        IEEE TRANSACTIONS ON INDUSTRIAL INFORMATICS, VOL. 18, NO. 4, APRIL 2022
+
+
+
+       with other strategies in two cases. Finally, Section V concludes                  the offline dataset is split into the training set and validation set.
+       this article.                                                                     The online dataset is used as the test set.
+                                                                                            Step 2: Pretrain the agent of DiagSelect. In the pretraining
+                                 II. RELATED WORK                                        phase, the agent of DiagSelect is trained by the cross-entropy loss
+                                                                                         function based on the original training set with initial probability.
+       A. Fault Diagnosis With Imbalanced Data                                           The output of the agent is the probability of whether the sample
+          Since the collected data usually contains a small number                       is selected.
+       of faulty samples and many normal samples, the implemen-                             Step 3: Train the agent of DiagSelect. The sample selection
+       tation of fault diagnosis with imbalanced data is important                       problem in DiagSelect is formalized as a MAB problem, which is
+       for machine health management and industrial process mon-                         equivalent to the single-state problem in reinforcement learning.
+       itoring [20]. The existing research on fault diagnosis with                       In the offline training phase, the REINFORCE loss of policy
+       imbalanced data is mainly divided into three categories: data                     gradient in reinforcement learning is used for training the agent.
+       augmentation-based strategy, feature learning-based strategy,                     The state is all samples in the training set, which includes
+       and model design-based strategy [21]. Data augmentation-based                     feature information and label information. The action is to select
+       strategy obtains better diagnosis performance by generating syn-                  samples from the training set. The reward is the performance of
+       thetic samples, oversampling existing samples, and reweighting                    the diagnosis model of DiagSelect on the validation set, which
+       samples. Yi et al. [22] proposed a minority clustering SMOTE                      is trained on the selected sample subset. At each time step, first,
+       (MC-SMOTE) method, which involves clustering minority sam-                        the sample subset is selected from the training set by the agent of
+       ples to improve imbalanced classification performance. After                      DiagSelect. Second, the diagnosis model of DiagSelect is trained
+       the data augmentation-based strategy, the processed data can                      on the selected sample subset. Third, the reward is obtained by
+       be directly used in the conventional fault diagnosis models.                      evaluating the diagnosis performance of the diagnosis model of
+       Feature learning-based strategy can ameliorate the diagnosis                      DiagSelect on the validation set. Finally, the parameters of the
+       performance by designing regularized neural networks or fea-                      agent are updated by REINFORCE loss with the reward and
+       ture adaptation to extract features from limited fault data.                      the probability that the sample is selected. The time step runs
+       Model design-based strategy gains high diagnosis performance                      until the agent of DiagSelect converges. More detailed training
+       by directly designing appropriate fault diagnosis model struc-                    strategies will be mentioned in Section III-B.
+       ture [23]. In addition, when the minority samples are extremely                        r Online Testing
+       rare, some knowledge-driven methods are proposed with limited                        Step 4: Obtain online fault diagnosis model. DiagSelect is a
+       sample data. For example, Li et al. [24] proposed a novel meta                    strategy for sample selection, which is decoupled from the online
+       learning fault diagnosis method, which acquires prior knowledge                   fault diagnosis model. After the offline training phase, the agent
+       to achieve fast and accurate few-shot bearing fault diagnosis by                  of DiagSelect is obtained. The sample subset can be selected
+       meta learning. Zhuo et al. [25] proposed a generative model                       from the training set by the agent of DiagSelect. The online
+       with fault attribute space, which is optimized by the auxiliary                   fault diagnosis model trained on the selected sample subset can
+       triplet loss to the any-shot problem with limited sample data.                    be employed to recognize the fault type of online samples.
+       In this work, deep reinforcement learning is considered to solve                     Step 5: Online fault diagnosis. When a new sample arrives,
+       the class-imbalance problem in the fault diagnosis domain for                     the online fault diagnosis model can be applied to the online
+       the first time.                                                                   diagnosis task to recognize the fault type of the new sample.
+                                                                                            The flowchart of DiagSelect applied to the fault diagnosis task
+                                   III. DIAGSELECT                                       is depicted in Fig. 2.
+          In this section, the first part introduces the overall flowchart
+       of using DiagSelect for fault diagnosis, which includes how                       B. Model Framework
+       to train DiagSelect and identify fault types online. The second
+                                                                                            In this section, some details of model framework are intro-
+       part introduces the framework of DiagSelect, which includes the
+                                                                                         duced. Given the imbalanced dataset D = {xk , y k }N     k=1 , where
+       detailed formulation, the training procedure, and definitions of                         C−1
+                                                                                         N = i=0 ni is the number of samples, ni is the number of
+       state, action, and reward. The third part introduces the detailed
+                                                                                         samples from class i, and C is the number of classes. In general,
+       optimization for the formulation of DiagSelect. The last part
+                                                                                         the subscripts of the class are sorted in descending order of the
+       introduces the detailed procedure of online testing of DiagSelect.
+                                                                                         number of samples in each class, e.g. if i < j, then ni > nj ,
+                                                                                         and n0  nC−1 . Let Dtrn = {Xtrn , Ytrn } be the training set,
+       A. Overall Flowchart                                                              Dval = {Xv , Yv } be the validation set, and Dtst = {Xtst , Ytst }
+          The overall flowchart of DiagSelect for fault diagnosis mainly                 be the test set. Imbalance ratio (IR) = |N |/|P|, where |N | is the
+       includes offline training and online testing, which contains five                 sample size of the majority class and |P| is the sample size of
+       steps as follows:                                                                 the minority class. The detail training framework of DiagSelect
+           r Offline Training                                                            is presented in Fig. 3.
+          Step 1: Preprocess Dataset. The z-score standardization [26] is                   To enable the model converge more stable, the training set
+       performed in the offline dataset and online dataset. Meanwhile,                   Dtrn is used to pretrain the agent of DiagSelect. In the pretraining
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+     FAN et al.: IMBALANCED SAMPLE SELECTION WITH DEEP REINFORCEMENT LEARNING FOR FAULT DIAGNOSIS                                                                2521
+
+
+
+                                                                                          We need to define π θ , at , and rt as the agent, action, and
+                                                                                        reward at time t, respectively. In the framework of DiagSelect,
+                                                                                        we formulate the sample selection as the action at from the
+                                                                                        agent π θ . In the MAB problem, each action is selected with an
+                                                                                        expectation or average reward. The expectation reward of each
+                                                                                        action at is defined as q∗ (at )
+                                                                                                                         .
+                                                                                                                q∗ (at ) = E[rt |at ].               (2)
+                                                                                           This work adopts the average sampling method, which evalu-
+                                                                                        ates the reward of each action by calculating the average reward.
+                                                                                        The average reward is described as follows:
+
+                                                                                                                          . 1
+                                                                                                                                  i=1
+                                                                                                                   Q(at ) =       ri .                            (3)
+                                                                                                                            n t−1
+
+                                                                                          The goal of the MAB problem is to find the action correspond-
+                                                                                        ing to the maximum Q(at )
+                                                                                                               .
+     Fig. 2. Flowchart of DiagSelect applied to the fault diagnosis in the                                 At = arg max Q(at ).                     (4)
+     industrial process.                                                                                                     a
+
+                                                                                           Based on the MAB problem, we make a key conceptual
+                                                                                        assumption that formulates the sequential process of iterating the
+                                                                                        sample selection as an MDP. Formally, the MDP can be defined
+                                                                                        as the tuple M = {S, A, R}, where S is the state, A is the
+                                                                                        action, and R is the reward. More specifically, all components
+                                                                                        are defined as follows.
+                                                                                           1) State: S is the state from the tuple M of MDP. S =
+                                                                                        {st |t = 0, . . ., T }, T is the max value of the time step. The state
+                                                                                        st is represented by the concatenation of process variables and
+                                                                                        class labels from the training set at time step t. The state st is
+                                                                                        defined as follows:
+                                                                                                               st = Xtrn ⊕ onehot(Ytrn )                          (5)
+                                                                                        where Xtrn is the process variables of training set and Ytrn is the
+                                                                                        class labels of the training set. At each time step, the sample
+                                                                                        order of training set is shuffled.
+                                                                                           To encode st for reinforcement learning, the gated recurrent
+     Fig. 3.   Model training framework of DiagSelect.                                  unit (GRU) is selected to generate a dense vector representation
+                                                                                        ht . The mechanism of GRU makes the state of the agent have
+                                                                                        relevance in multiple time steps of the agent, which makes it
+     phase, the input of agent of DiagSelect is Xtrn ⊕ onehot(Ytrn )                    unnecessary to manually define the changing and appropriate
+     and the loss of agent is defined as follows:                                       states. The details of the encoding process are defined as follows.
+                                            |Dtrn |−1
+                                                                                       The update ratio zt is
+                                       1
+                         Lpre = −                     pi log pi                 (1)
+                                     |Dtrn | i=0 ini                                                           zt = σ(Wz st + Uz ht−1 )                           (6)
+
+     where |Dtrn | represents the sample size of Dtrn , pi is the 2-D                   where st is the state of current time step, ht−1 is the dense vector
+     output of agent, and piini is the 2-D initial probability of sample                representation of state st−1 at the previous time step, Wz is the
+     i. The first dimension of piini is the probability that sample i is not            input weights of update gate, Uz is the output weights of update
+     selected, and the second dimension of piini is the probability that                gate, and σ(·) denotes the sigmoid function. The reset ratio ot is
+     sample i is selected. To enable the agent network to converge                                              ot = σ(Wt st + Ut ht−1 )                          (7)
+     better, the second dimension of piini is the proportion of the
+     sample size of the corresponding class to the number of all                        where Wt is the input weights of update gate, and Ut is the output
+     samples. The sum of the values from the first dimension and                        weights of update gate. The intermediate variable h̃t is
+     the second dimension of piini is one. After the pretraining phase,
+                                                                                                          h̃t = tanh(W st + U (ot  ht−1 ))                       (8)
+     the naive DiagSelect has been obtained. For the strong DiagS-
+     elect, reinforcement learning is introduced to further optimize                    where W is the input weights, U is the output weights, and 
+     DiagSelect.                                                                        is the Hadamard product. The dense vector representation ht of
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+       2522                                                                        IEEE TRANSACTIONS ON INDUSTRIAL INFORMATICS, VOL. 18, NO. 4, APRIL 2022
+
+
+
+       state st at the current time step is                                              where  is the evaluation criterion and rt is the reward at time
+                                                                                         step t.
+                          ht = zt  ht−1 + (1 − zt )  h̃t                       (9)
+       where zt is the update ratio, ht−1 is the dense vector repre-                     C. Optimization of the Markov Decision Process
+       sentation of state st−1 at the previous time step, and h̃t is the                    After defining all components of the MDP of RL, it is neces-
+       intermediate variable.                                                            sary for DiagSelect to select the loss function to solve the entire
+          2) Action: A is the action from the tuple M of MDP, which is                   optimization problem. In this work, the REINFORCE loss [19]
+       obtained by the agent π θ . In the framework of the DiagSelect, the               of the standard policy gradient method is used to solve the entire
+       action is to select samples from the training set Dtrn . The output               optimization problem. The loss function is defined as follows:
+       of the agent π θ is 2-D. The first dimension is the probability
+       that the sample is not selected, and the second dimension is the                                           L(π θ ) = −Σepi  k k
+                                                                                                                              k=1 rt pt .                         (15)
+       probability that the sample is selected.                                            In this loss function, when the agent of DiagSelect makes a
+          After obtaining the dense vector representation ht of current                  backpropagation at time step t, action at needs to be collected
+       state st , the probability that the sample is selected should be                  by epi times to obtain rtk and pkt . To learn the optimal policy
+       calculated. To obtain the action probability at time step t, we                   θopt = arg maxL(πθ ), the optimization process of L(π θ ) can
+       feed the dense vector representation ht into the fully connected                               θ
+       layer                                                                             be derived as
+
+                                    dt = ht WfT + bt                            (10)                               θ ← θ − ρΣepi  k k
+                                                                                                                             k=1 rt pt                            (16)
+
+                                                exp(−dt,i )                              where ρ is the learning rate, rtk is the reward for collecting the
+                          πθ (at,i |st ) = C                                   (11)     k time at time step t, pkt is the probability of akt at time step t.
+                                               j=1 exp(−dt,j )
+
+       where Wf and bt are weights and bias of the fully connected                       D. Online Testing
+       layer. C is the class number, θ is the trainable parameters of                       After the agent of DiagSelect has converged, the deterministic
+       the agent π θ . dt,i is the ith element of dt . πθ (at,i |st ) is the ith         action can be obtained from the agent. When the training set Dtrn
+       element of πθ (at |st ). at,i is the ith element of at . When at,i is             is fed into the agent, the action can be obtained as follows:
+       one, the sample i is selected. The action is sampled from the
+       agent of π θ (at |st ) as follows:                                                                         a∗ = arg max π θ (a|s)                          (17)
+                                                                                                                              a
+
+                             at , pt = sample(π θ (at |st ))                    (12)     where s = Xtrn ⊕ onehot(Ytrn ). The online diagnosis model
+                                                                                           online
+                                                                                         fdig     is trained based on the selected samples subset and then
+       where at indicates the 1-D binary vector, zero represents the
+       sample is not selected and one represents the sample is selected.                 the predicted labels Ŷtst of test set Dtst can be obtained as follows:
+                                                                                                                                          †
+       pt represents the probability of selecting at .                                                           Ŷtst = fdig
+                                                                                                                          online
+                                                                                                                                 (Xtst ; Dtrn )                   (18)
+           3) Reward: For the MAB problem, the goal of the formula-
+                                                                                                   †
+       tion is to obtain the best actions and maximize the corresponding                 where Dtrn   is the selected samples subset of training set Dtrn
+       rewards. For the agent of DiagSelect, the goal of the formulation                 when the element of a∗ is one.
+       is to select the best sample subset. A direct and effective strategy                 The entire process of DiagSelect includes two parts: offline
+       is to train a diagnosis model of DiagSelect on selected samples                   training and online testing. The pseudocode of offline training of
+       subset and use the diagnosis performance in the validation set                    DiagSelect is shown in Algorithm 1. The pseudocode of online
+       Dval as the reward. The diagnosis model of DiagSelect is just to                  testing of DiagSelect is shown in Algorithm 2.
+       analog the environment in reinforcement learning for obtaining
+       the reward. The evaluation criterion is used to be the quantitative                                          IV. CASE STUDIES
+       indicator for the performance of the diagnosis model of DiagS-                    A. Case Study in Synthetic Datasets
+       elect in the validation set Dval . The evaluation criterion of the
+       diagnosis model in DiagSelect is preferably consistent with that                     1) Setup Details: In this case study, we create a series of
+       of the online fault diagnosis model for online testing. We train                  toy imbalanced datasets from the TwoMoon dataset [27] with
+       the diagnosis model of DiagSelect based on the selected samples                   different IRs. In our experiment, the toy dataset contains two
+       subset and obtain the predicted labels Ŷvt of the validation set                 classes. The number of samples in the minority class is 50, and
+       Xv at time step t as follows:                                                     the number of samples in the majority class varies with the IRs.
+                                                    †
+                                                                                         To evaluate the effectiveness of the proposed DiagSelect for fault
+                                 Ŷvt = fdig (Xv ; Dtrn )                       (13)     diagnosis, it is compared with several strategies under different
+                †                                                                        IRs, as shown in Fig. 4. Comparison strategies come from four
+       where Dtrn  is the selected samples subset from training set Dtrn
+                                                                                         major representative branches (under/over-sampling, cleaning-
+       when the element of at is one, fdig is the diagnosis model of
+                                                                                         resampling, and ensemble). After the process of under/over-
+       DiagSelect. Then, the reward function in the environment is
+                                                                                         sampling, the number of samples in each class is the same.
+       defined as follows:
+                                                                                         The selected comparison strategies are as follows: RUS, ROS,
+                                    rt = (Yv , Ŷvt )                          (14)     SMOTE [10], ADASYN [11], SVMSMOTE [28], SMOTE with
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+     FAN et al.: IMBALANCED SAMPLE SELECTION WITH DEEP REINFORCEMENT LEARNING FOR FAULT DIAGNOSIS                                                                2523
+
+
+
+
+     Fig. 4. Comparisons of DiagSelect with other different strategies. The IRs in the 1st, 2nd, and 3rd rows are 2, 10, and 20, respectively. The
+     number in the lower right of each subfigure is F1 -score.
+
+
+
+     Tomek links cleaning (SMOTETomek) [12], and EasyEnsem-                             When the IR is 20, since the information of the majority class is
+     ble [29]. ORG represents the original data without any strategy.                   far more than the information of the minority class, all methods
+     In this manner, F1 -score is used as the evaluation criterion.                     obtain the worst diagnosis performance. Note that even under
+     We introduce SVM [30] as a diagnosis model of all strategies.                      the highly imbalanced ratio, the DiagSelect-based SVM method
+     The input dimension of the agent of DiagSelect is 2. The layer                     can still fit the data distribution and obtain a reasonable and
+     number of GRU is 1. The hidden dimension of GRU is 5. The                          stable decision boundary. This is because the DiagSelect-based
+     output dimension of the agent of DiagSelect is 2. The optimizer                    SVM method can adaptively select effective samples based on
+     is RMSprop. The learning rate of the RMSprop optimizer is                          the validation rewards to obtain good diagnosis performance.
+     0.001. The epi is 10. The early stop is set to 100.                                It can be found that the DiagSelect-based SVM method has
+         2) Visualization and Analysis: The class decision boundaries                   a strong generalization ability under different IRs. All results
+     determined by the different strategies based on SVM are plotted                    indicate that our DiagSelect-based SVM method is superior to
+     in Fig. 4. In general, it can be observed that the diagnosis per-                  other strategies-based SVM methods in handling imbalanced
+     formance of all strategies-based methods deteriorates with the                     diagnosis problems.
+     IR increasing, especially the ORG-based SVM method. In the
+     dataset with IRs (2, 10, and 20), the F1 -scores of the DiagSelect-
+     based SVM methods are 0.95, 0.74, and 0.57, respectively,
+     which shows that DiagSelect-based SVM methods outperform                           B. Case Study in the USM Diagnostics
+     other strategies-based SVM methods under different IRs. More                          To verify the effectiveness and stability of the proposed Di-
+     specifically, when the IR is 2, all strategies-based SVM methods                   agSelect in practical applications, we conducted experiments on
+     can learn a clear class decision boundary. Among them, the                         real-world fault diagnosis tasks. The USM diagnostics datasets
+     ADASYN-based, SVMSMOTE-based, and DiagSelect-based                                 are acquired from the UCI machine learning repository [31] and
+     SVM methods obtain the best performance with the F1 -score                         provided by the National Engineering Laboratories (NEL), U.K..
+     of 0.95. As IR increases from 2 to 10, the performance of                          In this work, Meter C and Meter D datasets are selected from
+     all strategies-based SVM methods has deteriorated. The ORG-                        the USM diagnostics datasets for this case study. Meter C and
+     based SVM method deteriorates the most, which indicates                            Meter D datasets contain four classes, which are healthy, gas
+     that the imbalance problem destroys the data distribution and                      injection, installation effects, and waxing. These datasets have
+     makes the decision boundary of the diagnosis model biased.                         43 features, including profile factor, symmetry, crossflow, flow
+     Other strategies-based SVM methods have alleviated the impact                      velocity (in each of the four paths), speed of sound (in each of
+     of the imbalanced problem to a certain extent. However, the                        the four paths), signal strength (at both ends of each of the four
+     DiagSelect-based SVM method obtains the best performance                           paths), signal quality (at both ends of each of the four paths),
+     with the F1 -score of 0.74, which reflects the effectiveness of the                gain (at both ends of each of the four paths), and transit time
+     DiagSelect-based SVM method by selecting effective samples                         (at both ends of each of the four paths). The information of the
+     and removing redundant samples for imbalanced problems.                            USM diagnostics datasets is summarized in Table I.
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+       2524                                                                        IEEE TRANSACTIONS ON INDUSTRIAL INFORMATICS, VOL. 18, NO. 4, APRIL 2022
+
+
+
+                                                                                         The epi is 10. The early stop is set to 100. The setting of
+                                                                                         the comparison methods is the same as that of the synthetic
+                                                                                         dataset. We introduce three canonical diagnosis model (DT [32],
+                                                                                         SVM [30], and MLP [33]) to validate the effectiveness and
+                                                                                         stability of DiagSelect-based methods. The evaluation criteria
+                                                                                         are Balanced Accuracy (bAcc), Macro-F1 , and G-Mean (GM).
+                                                                                            2) Result Analysis: To make the results more convincing,
+                                                                                         the experiment was repeated ten times. Tables II and III show
+                                                                                         the mean and standard deviation of the diagnosis results of all
+                                                                                         strategies (i.e., RUS, ROS, SMOTE, ADASYN, SVMSMOTE,
+                                                                                         SMOTETomek, EasyEnsemble, and DiagSelect) combined with
+                                                                                         three different canonical diagnosis models. Meanwhile, to reflect
+                                                                                         the stability of all methods, the boxplot of Macro-F1 is shown
+                                                                                         in Figs. 5 and 6. In the fault diagnosis domain, the performance
+                                                                                         of the strategy varies with the different datasets and diagnosis
+                                                                                         models. Few methods have the adaptive ability in related fault
+                                                                                         diagnosis tasks. It can be seen from Tables II and III that the
+                                                                                         RUS-based method performs worst in the Meter C and Meter D
+                                                                                         datasets with all diagnosis models. In the case of the RUS-based
+                                                                                         method, if a relatively large number of samples are deleted from
+                                                                                         the majority class, it is possible to delete valuable information
+                                                                                         and change the distribution of the majority class or the entire
+                                                                                         dataset. In addition to the RUS-based method, other methods
+                                                                                         have played a role in dealing with the problem of class-imbalance
+                                                                                         problem in the fault diagnosis domain when combining with
+                                                                                         specific diagnosis models. However, these methods cannot per-
+                                                                                         form well combined with different diagnosis models in the two
+                                                                                         datasets. For example, EasyEnsemble works well combined
+                                                                                         with DT, SVM, and MLP in the Meter D dataset but fails to
+                                                                                         boost the performance combined with SVM in the Meter C
+                                      TABLE I
+                                                                                         dataset. The reason is that the EasyEnsemble-based method can
+                      INFORMATION OF USM DIAGNOSTICS DATASET                             make the diagnosis model stable, but not the performance of all
+                                                                                         methods in all datasets can be improved by the EasyEnsemble
+                                                                                         strategy. Meanwhile, SMOTETomek can perform well com-
+                                                                                         bined with DT and SVM but does not perform well combined
+                                                                                         with MLP. The reason is that they perform model-agnostic
+                                                                                         resampling/selecting without considering the differences in the
+                                                                                         diagnosis models. Therefore, it is important to make the model
+        Algorithm 2: Online Testing of DiagSelect.                                       more general by the effective sample selection strategy, which
+            Input: Dtrn is the training set. Dtst is the test set.                       considers the specific diagnosis model and different data distri-
+         1: Obtain state s based on Dtrn following Eq.5.                                 bution adaptively for the class-imbalance problem in the fault
+         2: Obtain the agent π θ by running Algorithm 1.                                 diagnosis domain. In the comparative experiment, it can be seen
+         3: Feed the state s into the agent π θ .                                        that DiagSelect performs best when used in combination with
+         4: Obtain the action a∗ based on state s following Eq.17.                       different models from the perspective of mean and standard
+                                        †                                                deviation in both datasets. Compared to other methods in the
+         5: Select samples subset Dtrn      by the action a∗ .
+                        online                                     †                     Meter C and Meter D datasets, the mean and standard deviation
+         6: Train the fdig       on the selected samples subset Dtrn
+                                                                                         of all evaluation criteria for DiagSelect is higher and smaller
+             and obtain the predicted labels Ŷtst following Eq.18.                      than other methods. DiagSelect performs relatively well and is
+                       online
+            Output: fdig      , Ŷtst                                                    stable in ten independent runs.
+                                                                                            3) Cross-Task Transferability of the DiagSelect: It can be
+                                                                                         seen from Table I that the Meter C and Meter D datasets
+          1) Setup Details: The experimental results are acquired by                     have the same data structure, including the same number of
+       the mean of four-fold stratified cross-validation. The input di-                  features and classes. Meanwhile, the sample size of each class
+       mension of the agent of DiagSelect is 47. The layer number of                     is also similar. The transferability of DiagSelect is considered
+       GRU is 1. The hidden dimension of GRU is 80. The output                           to be verified in the Meter C and Meter D datasets. In the
+       dimension of the agent of DiagSelect is 4. The optimizer is                       transferability experiment, we conducted the experiment on the
+       RMSprop. The learning rate of the RMSprop optimizer is 0.001.                     transferability of cross-model and cross-dataset by the train-test
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+     FAN et al.: IMBALANCED SAMPLE SELECTION WITH DEEP REINFORCEMENT LEARNING FOR FAULT DIAGNOSIS                                                                2525
+
+
+
+                                                                        TABLE II
+                                        DIAGNOSIS PERFORMANCE BY DIFFERENT METHODS IN METER C DIAGNOSTICS DATASET
+
+
+
+
+                                                                        TABLE III
+                                        DIAGNOSIS PERFORMANCE BY DIFFERENT METHODS IN METER D DIAGNOSTICS DATASET
+
+
+
+
+     Fig. 5.   Boxplot of Macro-F1 in Meter C diagnostics dataset: (a) DT, (b) SVM, and (c) MLP.
+
+
+
+
+     Fig. 6.   Boxplot of Macro-F1 in Meter D diagnostics dataset: (a) DT, (b) SVM, and (c) MLP.
+
+
+
+
+     task pairs. The experiment result of transferability is shown                      performance loss (−1.21%) is reported in the Train-Meter D
+     in Fig. 7. In the cross-model experiment, the largest relative                     (MLP) and Test-Meter D (SVM) task pair settings, which
+     performance loss (−25.08%) is reported in the train-Meter C                        indicates that the same-dataset and similar cross-model tasks
+     (SVM) and test-Meter D (DT) task pair set, which shows that                        have the smallest relative performance loss. This comparative
+     the relative performance loss of cross-dataset and cross-model                     experiment shows that DiagSelect has transferability in sim-
+     tasks is the largest in all train-test task pairs. The smallest relative           ilar datasets and similar models. Even for tasks with different
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+       2526                                                                        IEEE TRANSACTIONS ON INDUSTRIAL INFORMATICS, VOL. 18, NO. 4, APRIL 2022
+
+
+
+
+       Fig. 7. Cross-task transfer performance of DiagSelect in terms of Macro-F1 . (a) Cross-task transfer performance. (b) Cross-task transfer
+       performance loss.
+
+
+
+       datasets and different models, DiagSelect still has transferability.               [2] Z. Ge, S. Zhong, and Y. Zhang, “Semisupervised kernel learning for FDA
+       This transferability allows DiagSelect to be used directly or                          model and its application for fault classification in industrial processes,”
+                                                                                              IEEE Trans. Ind. Informat., vol. 12, no. 4, pp. 1403–1411, Aug. 2016.
+       initially for another similar task to reduce the calculation costs.                [3] O. Briones, R. Alarcón, A. J. Rojas, and D. Sbarbaro, “Tuning generalized
+                                                                                              predictive PI controllers for process control applications,” ISA Trans., to
+                                   V. CONCLUSION                                              be published, doi: 10.1016/j.isatra.2021.02.040.
+          In this article, a novel adaptive sample selection method called                [4] X. Zhang, C. Wei, and Z. Song, “Fast locally weighted PLS modeling for
+                                                                                              large-scale industrial processes,” Ind. Eng. Chem. Res., vol. 59, no. 47,
+       DiagSelect was proposed to settle the class-imbalance problem                          pp. 20779–20786, 2020.
+       in the fault diagnosis domain. Different from the conventional                     [5] Z. Ge, Z. Song, S. X. Ding, and B. Huang, “Data mining and analytics in
+       fault diagnosis methods for the class-imbalance problem, Di-                           the process industry: The role of machine learning,” IEEE Access, vol. 5,
+                                                                                              pp. 20590–20616, Sep. 2017.
+       agSelect was a novel strategy that can select samples adaptively                   [6] M. E. Koujok, A. Ragab, H. Ghezzaz, and M. Amazouz, “A multi-agent-
+       by the reward to improve the diagnosis performance of the                              based methodology for known and novel faults diagnosis in industrial
+       diagnosis model. The optimization problem of DiagSelect was                            processes,” IEEE Trans. Ind. Informat., vol. 17, no. 5, pp. 3358–3366,
+                                                                                              May 2021.
+       formulated as a MAB problem and optimized by REINFORCE.                            [7] Z. Hu and P. Jiang, “An imbalance modified deep neural network with
+       This adaptive automatic process of the sample selection makes                          dynamical incremental learning for chemical fault diagnosis,” IEEE Trans.
+       the diagnosis model perform better based on the data distribution                      Ind. Electron., vol. 66, no. 1, pp. 540–550, Jan. 2019.
+                                                                                          [8] T. Fei, Q. Qi, A. Liu, and A. Kusiak, “Data-driven smart manufacturing,”
+       without excessively increasing expert knowledge and domain                             J. Manuf. Syst., vol. 48, pp. 157–169, 2018.
+       knowledge. The proposed DiagSelect was evaluated in the syn-                       [9] I. Mani and I. Zhang, “kNN approach to unbalanced data distributions: A
+       thetic dataset and the real-world datasets. The experimental                           case study involving information extraction,,” in Proc. Workshop Learn.
+                                                                                              Imbalanced Datasets, 2003, pp. 1–7.
+       results showed that DiagSelect has the following remarkable                       [10] N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer, “Smote:
+       advantages: 1) DiagSelect has effectiveness and stability for                          Synthetic minority over-sampling technique,” J. Artif. Intell. Res., vol. 16,
+       settling the class-imbalance problem and outperforms other                             no. 1, pp. 321–357, 2011.
+                                                                                         [11] H. He, Y. Bai, E. A. Garcia, and S. Li, “Adasyn: Adaptive synthetic
+       state-of-the-art strategies in the fault diagnosis domain; 2) Di-                      sampling approach for imbalanced learning,” in Proc. IEEE Int. Joint Conf.
+       agSelect has the characteristic of adaptive sample selection;                          Neural Netw., 2008, pp. 1322–1328.
+       and 3) the transferability experiment showed that DiagSelect                      [12] G. E. Batista, A. L. Bazzan, and M. C. Monard, “Balancing training data
+                                                                                              for automated annotation of keywords: A case study,” in WOB, 2003,
+       has transferability, so it can be used as an initial model for                         pp. 10–18.
+       similar tasks to reduce the calculation costs. As a data level                    [13] J. M. Johnson and T. M. Khoshgoftaar, “Survey on deep learning with
+       technique, DiagSelect can be easily used in conjunction with the                       class imbalance,” J. Big Data, vol. 6, no. 1, 2019, Art. no. 27.
+                                                                                         [14] C. X. Ling, Q. Yang, J. Wang, and S. Zhang, “Decision trees with minimal
+       conventional diagnosis models. Thus, DiagSelect can be easily                          costs,” in Proc. 21st Int. Conf. Mach. Learn., 2004, Paper 69.
+       used with arbitrary evaluation criteria and the diagnosis models                  [15] X.-Y. Liu and Z.-H. Zhou, “The influence of class imbalance on cost-
+       in the fault diagnosis domain of the industrial process for the                        sensitive learning: An empirical study,” in Proc. IEEE 6th Int. Conf. Data
+                                                                                              Mining, 2006, pp. 970–974.
+       class-imbalance problem.                                                          [16] P. Peng, W. Zhang, Y. Zhang, Y. Xu, H. Wang, and H. Zhang, “Cost sen-
+                                                                                              sitive active learning using bidirectional gated recurrent neural networks
+                                                                                              for imbalanced fault diagnosis,” Neurocomputing, vol. 407, pp. 232–245,
+                                     REFERENCES                                               2020.
+                                                                                         [17] T.-Y. Lin, P. Goyal, R. Girshick, K. He, and P. Dollár, “Focal loss for dense
+        [1] M. Kano and Y. Nakagawa, “Data-based process monitoring, process
+                                                                                              object detection,” in Proc. IEEE Int. Conf. Comput. Vis., 2017, pp. 2980–
+            control, and quality improvement: Recent developments and applications
+                                                                                              2988.
+            in steel industry,” Comput. Chem. Eng., vol. 32, no. 1/2, pp. 12–24, 2008.
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+     FAN et al.: IMBALANCED SAMPLE SELECTION WITH DEEP REINFORCEMENT LEARNING FOR FAULT DIAGNOSIS                                                                2527
+
+
+
+     [18] B. Krawczyk, “Learning from imbalanced data: Open challenges and                                        Saite Fan received the B.Eng. degree in au-
+          future directions,” Prog. Artif. Intell., vol. 5, no. 4, pp. 221–232, 2016.                             tomation from the Zhejiang University of Tech-
+     [19] R. J. Williams, “Simple statistical gradient-following algorithms for                                   nology, Hangzhou, China, in 2017. He is cur-
+          connectionist reinforcement learning,” Mach. Learn., vol. 8, no. 3/4,                                   rently working toward the Ph.D. degree in elec-
+          pp. 229–256, 1992.                                                                                      tronic and information with the State Key Labo-
+     [20] R. Razavi-Far, M. Farajzadeh-Zanjani, and M. Saif, “An integrated class-                                ratory of Industrial Control Technology, College
+          imbalanced learning scheme for diagnosing bearing defects in induction                                  of Control Science and Engineering, Zhejiang
+          motors,” IEEE Trans. Ind. Informat., vol. 13, no. 6, pp. 2758–2769,                                     University, Hangzhou.
+          Dec. 2017.                                                                                                 His research interests include deep learning,
+     [21] T. Zhang et al., “Intelligent fault diagnosis of machines with small &                                  deep reinforcement learning, and the modeling
+          imbalanced data: A state-of-the-art review and possible extensions,” ISA                                and fault diagnosis of industrial processes.
+          Trans., to be published, doi: 10.1016/j.isatra.2021.02.042.
+     [22] H. Yi, Q. Jiang, X. Yan, and B. Wang, “Imbalanced classification based on
+          minority clustering smote with wind turbine fault detection application,”
+          IEEE Trans. Ind. Informat., vol. 17, no. 9, pp. 5867–5875, Sep. 2021.
+     [23] X. Yuan, B. Huang, Z. Ge, and Z. Song, “Double locally weighted prin-                                  Xinmin Zhang (Member, IEEE) received the
+          cipal component regression for soft sensor with sample selection under                                 Ph.D. degree in system science from Kyoto Uni-
+          supervised latent structure,” Chemometrics Intell. Lab. Syst., vol. 153,                               versity, Kyoto, Japan, in 2019.
+          pp. 116–125, 2016.                                                                                        From April 2019 to December 2019, he was a
+     [24] C. Li, S. Li, A. Zhang, Q. He, Z. Liao, and J. Hu, “Meta-learning for                                  Postdoctoral Research Fellow with the Depart-
+          few-shot bearing fault diagnosis under complex working conditions,”                                    ment of Systems Science, Kyoto University. He
+          Neurocomputing, vol. 439, pp. 197–211, 2021.                                                           is currently an Associate Professor with the Col-
+     [25] Y. Zhuo and Z. Ge, “Auxiliary information guided industrial data aug-                                  lege of Control Science and Engineering, Zhe-
+          mentation for any-shot fault learning and diagnosis,,” IEEE Trans. Ind.                                jiang University, Hangzhou, China. His research
+          Informat., vol. 17, no. 11, pp. 7535–7545, Nov. 2021.                                                  interests include machine learning, deep learn-
+     [26] D. G. Zill, Advanced Engineering Mathematics. Burlington, MA, USA:                                     ing, data mining, big data, and the modeling and
+          Jones & Bartlett Publishers, 2020.                                            fault diagnosis of industrial processes.
+     [27] T. Bühler and M. Hein, “Spectral clustering based on the graph p-
+          Laplacian,” in Proc. 26th Annu. Int. Conf. Mach. Learn., 2009, pp. 81–88.                             Zhihuan Song received the B.Eng. and M.Eng.
+     [28] H. M. Nguyen, E. W. Cooper, and K. Kamei, “Borderline over-sampling for                               degrees from the Hefei University of Technology,
+          imbalanced data classification,” Int. J. Knowl. Eng. Soft Data Paradigms,                             Anhui, China, in 1983 and 1986, respectively,
+          vol. 3, no. 1, pp. 4–21, 2011.                                                                        and the Ph.D. degree from Zhejiang University,
+     [29] X.-Y. Liu, J. Wu, and Z.-H. Zhou, “Exploratory undersampling for class-                               Hangzhou, China, in 1997, all in industrial au-
+          imbalance learning,” IEEE Trans. Syst., Man, Cybern., Part B., vol. 39,                               tomation.
+          no. 2, pp. 539–550, Apr. 2009.                                                                           Since 1997, he has been with the College
+     [30] C. Cortes and V. Vapnik, “Support-vector networks,” Mach. Learn., vol. 20,                            of Control Science and Engineering, Zhejiang
+          no. 3, pp. 273–297, 1995.                                                                             University, where he was first a Postdoctoral
+     [31] D. Dua and C. Graff, “UCI machine learning repository,” School Inf.                                   Research Fellow, then an Associate Professor,
+          Comput. Sci., Univ. California-Irvine, Irvine, CA, USA, 2017. [Online].                               and is currently a Professor. He has authored or
+          Available: http://archive.ics.uci.edu/ml                                      coauthored more than 200 papers in journals and conference proceed-
+     [32] J. R. Quinlan, “Induction of decision trees,” Mach. Learn., vol. 1, no. 1,    ings. His research interests include the modeling and fault diagnosis of
+          pp. 81–106, 1986.                                                             industrial processes, analytics and applications of industrial big data,
+     [33] S. Haykin, Neural Networks and Learning Machines. London, U.K.:               and advanced process control technologies.
+          Pearson, 2010.
+
+
+
+
+Authorized licensed use limited to: University of Electronic Science and Tech of China. Downloaded on September 06,2026 at 05:00:35 UTC from IEEE Xplore. Restrictions apply.
+

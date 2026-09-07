@@ -9,8 +9,9 @@ import os
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # D:\imb_project
 
-DATA_ROOT   = os.path.join(PROJECT_ROOT, "Dataset")
-KEEL_5FOLD  = os.path.join(DATA_ROOT, "KEEL", "5fold")        # <name>/fold{i}_{train,test}.csv
+DATA_ROOT    = os.path.join(PROJECT_ROOT, "Dataset")
+KEEL_5FOLD   = os.path.join(DATA_ROOT, "KEEL", "5fold")        # <name>/fold{i}_{train,test}.csv
+KEEL_COMPLETE = os.path.join(DATA_ROOT, "KEEL", "complete")    # <name>.csv (whole dataset, single split)
 BEARING_RAW = os.path.join(DATA_ROOT, "Bearing")             # <name>.csv  (raw, header w/ feat_* + label)
 BEARING_IR  = os.path.join(DATA_ROOT, "Bearing_IR")          # IR{5,10,20,30}/<name>.csv  (constructed)
 SOFTWARE    = os.path.join(DATA_ROOT, "Software")          # AR.csv, CM.csv, KC.csv, MC.csv (features + defects label)
